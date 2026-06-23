@@ -57,4 +57,27 @@ TIMEOUT_TIERS: dict[str, dict[str, float]] = {
 DEFAULT_TIMEOUT_TIER = {"connect": 10, "read": 300, "write": 30, "pool": 30}
 
 
+# ---------------------------------------------------------------------------
+# Memory system configuration
+# ---------------------------------------------------------------------------
+SHORT_TERM_TTL_SECONDS: int = int(os.getenv("SHORT_TERM_TTL_SECONDS", "300"))
+SHORT_TERM_MAX_ENTRIES: int = int(os.getenv("SHORT_TERM_MAX_ENTRIES", "100"))
+SHORT_TERM_MAX_BYTES: int = int(os.getenv("SHORT_TERM_MAX_BYTES", str(10 * 1024 * 1024)))
+
+EXTRACT_TRIGGER_TURN_COUNT: int = int(os.getenv("EXTRACT_TRIGGER_TURN_COUNT", "10"))
+EXTRACT_TRIGGER_SESSION_END: bool = bool(
+    os.getenv("EXTRACT_TRIGGER_SESSION_END", "1"))
+EXTRACT_MIN_CONFIDENCE: float = float(
+    os.getenv("EXTRACT_MIN_CONFIDENCE", "0.6"))
+
+COMPRESS_DEDUP_THRESHOLD: float = float(
+    os.getenv("COMPRESS_DEDUP_THRESHOLD", "0.85"))
+COMPRESS_IMPORTANCE_MIN: float = float(
+    os.getenv("COMPRESS_IMPORTANCE_MIN", "0.3"))
+
+RETRIEVER_DEFAULT_TOP_K: int = int(os.getenv("RETRIEVER_DEFAULT_TOP_K", "5"))
+RETRIEVER_SIMILARITY_THRESHOLD: float = float(
+    os.getenv("RETRIEVER_SIMILARITY_THRESHOLD", "0.4"))
+
+
 config = AppConfig()

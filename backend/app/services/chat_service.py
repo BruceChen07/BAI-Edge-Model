@@ -15,14 +15,30 @@ from app.services.resource_monitor import (
     get_full_resource_snapshot,
     list_recommended_models,
 )
+from app.services.memory_orchestrator import MemoryOrchestrator
 from app.services.settings_service import SettingsService
 from app.utils.ids import new_id
+
+
+# module-level turn tracker (keyed by session_id)
+_turn_tracker: dict[str, int] = {}
+
+
+def _get_turn(session_id: str) -> int:
+    val = _turn_tracker.get(session_id, 0) + 1
+    _turn_tracker[session_id] = val
+    return val
+
+
+def _reset_turn(session_id: str) -> None:
+    _turn_tracker.pop(session_id, None)
 
 
 class ChatService:
     def __init__(self) -> None:
         self.ollama_service = OllamaService()
         self.settings_service = SettingsService()
+        self.memory_orchestrator = MemoryOrchestrator()
         self.logger = get_logger("app.chat")
 
     def create_session(self, payload: SessionCreateDTO) -> SessionDTO:
@@ -70,6 +86,8 @@ class ChatService:
             conn.execute(
                 "DELETE FROM messages WHERE session_id = ?", (session_id,))
             conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+        self.memory_orchestrator.clear_session_cache(session_id)
+        _reset_turn(session_id)
 
     def answer(self, payload: ChatRequestDTO) -> ChatResponseDTO:
         started_at = time.time()
@@ -92,12 +110,15 @@ class ChatService:
             payload.knowledge_base_ids, payload.query, payload.top_k)
         model_name = self._resolve_model_name(payload.model_name)
         answer = self._compose_answer(
-            payload.query, citations, model_name, payload.session_id)
+            payload.query, citations, model_name, payload.session_id,
+            include_memory=getattr(payload, "include_memory", True),
+        )
         self._save_message(payload.session_id, "user",
                            payload.query, model_name)
         message_id = self._save_message(
             payload.session_id, "assistant", answer, model_name)
         self._save_citations(message_id, citations)
+        self._update_memory_state(payload.session_id, payload.query)
         log_event(
             self.logger,
             logging.INFO,
@@ -157,19 +178,30 @@ class ChatService:
             })
         return citations
 
-    def _compose_answer(self, query: str, citations: list[dict], model_name: str, session_id: str) -> str:
+    def _compose_answer(
+        self, query: str, citations: list[dict], model_name: str,
+        session_id: str, include_memory: bool = True,
+    ) -> str:
         history = self._load_history(session_id)
         context = self._build_context(citations)
+
+        # Build system prompt with memory context
+        system_parts = [
+            "You are a local-first assistant. "
+            "Answer in the user's language. "
+            "If retrieval context is provided, use it as supporting knowledge. "
+            "Do not fabricate citations.",
+        ]
+
+        if include_memory:
+            memory_context = self.memory_orchestrator.build_memory_context(
+                session_id, query,
+            )
+            if memory_context:
+                system_parts.append(memory_context)
+
         messages: list[dict[str, str]] = [
-            {
-                "role": "system",
-                "content": (
-                    "You are a local-first assistant. "
-                    "Answer in the user's language. "
-                    "If retrieval context is provided, use it as supporting knowledge. "
-                    "Do not fabricate citations."
-                ),
-            }
+            {"role": "system", "content": "\n\n".join(system_parts)},
         ]
         messages.extend(history)
         messages.append(
@@ -252,6 +284,31 @@ class ChatService:
 
     def _sse(self, event: str, payload: dict) -> str:
         return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+    def _update_memory_state(self, session_id: str, user_query: str) -> None:
+        """Refresh short-term cache and check extraction trigger after each turn."""
+        if not session_id:
+            return
+        turn = _get_turn(session_id)
+
+        # Update short-term cache with recent messages
+        history = self._load_history(session_id)
+        if history:
+            cache_msgs: list[dict[str, str]] = []
+            for msg in history[-10:]:
+                if isinstance(msg, dict):
+                    cache_msgs.append({
+                        "role": str(msg.get("role", "")),
+                        "content": str(msg.get("content", ""))[:200],
+                    })
+            self.memory_orchestrator.update_session_cache(
+                session_id, cache_msgs)
+
+        # Check if extraction should be triggered
+        if self.memory_orchestrator.maybe_trigger_extraction(session_id, turn):
+            self.memory_orchestrator.auto_extract_from_messages(
+                session_id, history,
+            )
 
     def check_resources(self, model_name: str | None = None) -> dict:
         """Check hardware resources and model feasibility."""
