@@ -15,7 +15,6 @@ import { AdminPage } from "./pages/AdminPage";
 import { KnowledgeBaseManagePage } from "./pages/KnowledgeBaseManagePage";
 import { ModelCatalogPage } from "./pages/ModelCatalogPage";
 import { DownloadPage } from "./pages/DownloadPage";
-import { MarkdownStudioPage } from "./pages/MarkdownStudioPage";
 
 const { Header, Content } = Layout;
 const { Paragraph, Title } = Typography;
@@ -72,13 +71,6 @@ function App() {
                 </Button>
               )}
             </NavLink>
-            <NavLink to="/markdown-studio">
-              {({ isActive }) => (
-                <Button type={isActive ? "primary" : "default"}>
-                  {copy.navigation.markdownStudio}
-                </Button>
-              )}
-            </NavLink>
             <Segmented<Locale>
               value={locale}
               options={[
@@ -107,7 +99,7 @@ function App() {
             />
             <Route
               path="/markdown-studio"
-              element={<MarkdownStudioPage locale={locale} />}
+              element={<Navigate to="/" replace />}
             />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

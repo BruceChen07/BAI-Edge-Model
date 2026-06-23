@@ -9,7 +9,6 @@ type MessageBundle = {
     catalog: string
     downloads: string
     knowledgeBases: string
-    markdownStudio: string
   }
   panels: {
     system: string
@@ -153,6 +152,7 @@ type MessageBundle = {
     liveProgress: string
     noActiveProgress: string
     latestJob: string
+    jobDetail: string
     noJobsYet: string
     downloadJobs: string
     model: string
@@ -163,6 +163,12 @@ type MessageBundle = {
     pause: string
     output: string
     retries: string
+    downloaded: string
+    total: string
+    startedAt: string
+    completedAt: string
+    lastProgress: string
+    error: string
     speed: string
     eta: string
     auto: string
@@ -183,7 +189,6 @@ export const messages: Record<Locale, MessageBundle> = {
       catalog: '模型目录',
       downloads: '下载中心',
       knowledgeBases: '知识库管理',
-      markdownStudio: 'Markdown 工作室',
     },
     panels: {
       system: '系统信息',
@@ -327,6 +332,7 @@ export const messages: Record<Locale, MessageBundle> = {
       liveProgress: '实时进度',
       noActiveProgress: '当前没有活动中的进度流',
       latestJob: '最近任务',
+      jobDetail: '任务详情',
       noJobsYet: '暂无下载任务',
       downloadJobs: '下载任务',
       model: '模型',
@@ -337,6 +343,12 @@ export const messages: Record<Locale, MessageBundle> = {
       pause: '暂停',
       output: '输出路径',
       retries: '重试次数',
+      downloaded: '已下载',
+      total: '总大小',
+      startedAt: '开始时间',
+      completedAt: '完成时间',
+      lastProgress: '最近进度',
+      error: '错误信息',
       speed: '速度',
       eta: '剩余时间',
       auto: '自动',
@@ -355,7 +367,6 @@ export const messages: Record<Locale, MessageBundle> = {
       catalog: 'Catalog',
       downloads: 'Downloads',
       knowledgeBases: 'Knowledge Bases',
-      markdownStudio: 'Markdown Studio',
     },
     panels: {
       system: 'System Info',
@@ -499,6 +510,7 @@ export const messages: Record<Locale, MessageBundle> = {
       liveProgress: 'Live Progress',
       noActiveProgress: 'No active progress stream',
       latestJob: 'Latest Job',
+      jobDetail: 'Job Detail',
       noJobsYet: 'No jobs yet',
       downloadJobs: 'Download Jobs',
       model: 'Model',
@@ -509,6 +521,12 @@ export const messages: Record<Locale, MessageBundle> = {
       pause: 'Pause',
       output: 'Output',
       retries: 'Retries',
+      downloaded: 'Downloaded',
+      total: 'Total Size',
+      startedAt: 'Started At',
+      completedAt: 'Completed At',
+      lastProgress: 'Last Progress',
+      error: 'Error',
       speed: 'Speed',
       eta: 'ETA',
       auto: 'Auto',

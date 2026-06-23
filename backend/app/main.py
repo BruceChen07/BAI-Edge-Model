@@ -41,6 +41,7 @@ from app.services.memory_orchestrator import MemoryOrchestrator
 from app.services.memory_service import MemoryService
 from app.services.model_download_service import ModelDownloadService
 from app.services.ollama_service import OllamaService
+from app.services.resource_monitor import extract_param_size
 from app.services.settings_service import SettingsService
 from app.services.task_service import TaskService
 
@@ -241,6 +242,129 @@ def set_timeout_override(payload: TimeoutOverrideDTO) -> ApiResponse[dict]:
 # ---------------------------------------------------------------------------
 
 _model_download_service = ModelDownloadService()
+
+
+def _infer_provider_from_name(model_name: str) -> str:
+    lowered = model_name.lower()
+    if lowered.startswith("qwen"):
+        return "Qwen"
+    if lowered.startswith("llama"):
+        return "Meta"
+    if lowered.startswith("gemma"):
+        return "Google"
+    if lowered.startswith("phi"):
+        return "Microsoft"
+    if lowered.startswith("deepseek"):
+        return "DeepSeek"
+    return "unknown"
+
+
+def _find_catalog_fallback(model_name: str, provider: str, param_size: str) -> dict | None:
+    entry = catalog_service.get_by_model_name(model_name)
+    if entry is not None:
+        return entry.model_dump()
+
+    family = model_name.split(":", 1)[0].strip()
+    if not family:
+        return None
+
+    candidates = catalog_service.search(family, limit=50).items
+    exact_size = [
+        item for item in candidates
+        if item.param_size == param_size and (
+            item.provider.lower() == provider.lower() or provider == "unknown"
+        )
+    ]
+    if exact_size:
+        return exact_size[0].model_dump()
+
+    exact_provider = [
+        item for item in candidates
+        if item.provider.lower() == provider.lower()
+    ]
+    if exact_provider:
+        return exact_provider[0].model_dump()
+
+    return candidates[0].model_dump() if candidates else None
+
+
+def _enrich_local_model(item: dict) -> dict:
+    model_name = str(item.get("name", "")).strip()
+    provider = _infer_provider_from_name(model_name)
+    param_size = extract_param_size(model_name)
+    enriched = {
+        "name": model_name,
+        "size": item.get("size", 0),
+        "modified_at": item.get("modified_at", ""),
+        "digest": item.get("digest", ""),
+        "provider": provider,
+        "param_size": param_size,
+        "score_total": 0,
+        "score_quality": 0,
+        "score_speed": 0,
+        "score_fit": 0,
+        "score_context": 0,
+        "fit_level": "unknown",
+        "estimated_tps": 0,
+        "quantization": "unknown",
+        "memory_required_gb": 0,
+        "vram_required_gb": 0,
+        "run_mode": "CPU",
+        "use_case": "general",
+        "max_context": 8192,
+        "is_moe": False,
+        "available": True,
+        "source": "local",
+    }
+
+    llmfit_rec = llmfit_service.get_model_info(model_name)
+    if llmfit_rec is not None:
+        enriched.update({
+            "provider": llmfit_rec.provider or provider,
+            "param_size": llmfit_rec.param_size or param_size,
+            "score_total": llmfit_rec.score.total,
+            "score_quality": llmfit_rec.score.quality,
+            "score_speed": llmfit_rec.score.speed,
+            "score_fit": llmfit_rec.score.fit,
+            "score_context": llmfit_rec.score.context,
+            "fit_level": llmfit_rec.fit_level,
+            "estimated_tps": llmfit_rec.estimated_tps,
+            "quantization": llmfit_rec.quantization,
+            "memory_required_gb": llmfit_rec.memory_required_gb,
+            "run_mode": llmfit_rec.run_mode,
+            "use_case": llmfit_rec.use_case,
+            "max_context": llmfit_rec.max_context or 8192,
+            "is_moe": llmfit_rec.is_moe,
+            "source": "local+llmfit",
+        })
+
+    catalog_rec = _find_catalog_fallback(
+        model_name,
+        str(enriched["provider"]),
+        str(enriched["param_size"]),
+    )
+    if catalog_rec is not None:
+        enriched.update({
+            "provider": catalog_rec.get("provider") or enriched["provider"],
+            "param_size": catalog_rec.get("param_size") or enriched["param_size"],
+            "score_total": enriched["score_total"] or catalog_rec.get("score_total", 0),
+            "score_quality": enriched["score_quality"] or catalog_rec.get("score_quality", 0),
+            "score_speed": enriched["score_speed"] or catalog_rec.get("score_speed", 0),
+            "score_fit": enriched["score_fit"] or catalog_rec.get("score_fit", 0),
+            "score_context": enriched["score_context"] or catalog_rec.get("score_context", 0),
+            "fit_level": enriched["fit_level"] if enriched["fit_level"] != "unknown" else catalog_rec.get("fit_level", "unknown"),
+            "estimated_tps": enriched["estimated_tps"] or catalog_rec.get("estimated_tps", 0),
+            "quantization": enriched["quantization"] if enriched["quantization"] != "unknown" else catalog_rec.get("quantization", "unknown"),
+            "memory_required_gb": enriched["memory_required_gb"] or catalog_rec.get("memory_required_gb", 0),
+            "vram_required_gb": catalog_rec.get("vram_required_gb", 0),
+            "run_mode": enriched["run_mode"] if enriched["run_mode"] != "CPU" else catalog_rec.get("run_mode", "CPU"),
+            "use_case": enriched["use_case"] if enriched["use_case"] != "general" else catalog_rec.get("use_case", "general"),
+            "max_context": enriched["max_context"] if enriched["max_context"] != 8192 else catalog_rec.get("max_context", 8192),
+            "is_moe": enriched["is_moe"] or catalog_rec.get("is_moe", False),
+            "source": enriched["source"] if enriched["source"] != "local" else "local+catalog",
+        })
+
+    return enriched
 
 
 @app.get("/api/v1/system/models/catalog")
@@ -448,7 +572,8 @@ def catalog_sync(payload: dict | None = None) -> ApiResponse[dict]:
 
     if source in {"local", "auto"}:
         local_models = chat_service.list_models()
-        result = catalog_service.sync_local_models(local_models)
+        enriched_models = [_enrich_local_model(item) for item in local_models]
+        result = catalog_service.sync_local_models(enriched_models)
         return ApiResponse(
             data={
                 "message": "local model sync completed",
@@ -478,12 +603,41 @@ def catalog_sync(payload: dict | None = None) -> ApiResponse[dict]:
 @app.post("/api/v1/download/pull")
 def download_pull(payload: DownloadPullRequest) -> ApiResponse[dict]:
     """Pull a model with multi-source fallback (Ollama → HF → ModelScope)."""
+    # #region debug-point A:download-pull-entry
+    log_event(
+        logger,
+        20,
+        "download.pull.endpoint_entry_debug",
+        "Download pull API request received",
+        module_name="download",
+        trace_id=get_trace_id(),
+        model_name=payload.model_name,
+        source=payload.source,
+        has_download_url=bool(payload.download_url),
+        chunk_size=payload.chunk_size,
+    )
+    # #endregion
     result = download_orchestrator.pull_model(
         model_name=payload.model_name,
         source=payload.source,
         download_url=payload.download_url,
         chunk_size=payload.chunk_size,
     )
+    # #region debug-point E:download-pull-return
+    log_event(
+        logger,
+        20,
+        "download.pull.endpoint_return_debug",
+        "Download pull API request completed",
+        module_name="download",
+        trace_id=get_trace_id(),
+        model_name=payload.model_name,
+        source=payload.source,
+        result_status=result.get("status"),
+        result_source=result.get("source"),
+        job_id=result.get("job_id"),
+    )
+    # #endregion
     return ApiResponse(data=result)
 
 
@@ -499,6 +653,20 @@ async def download_progress(model_name: str) -> StreamingResponse:
     """SSE endpoint for real-time download progress."""
     return StreamingResponse(
         download_orchestrator.tracker.stream(model_name),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/v1/download/jobs/{job_id}/progress")
+async def download_job_progress(job_id: str) -> StreamingResponse:
+    """SSE endpoint for a single persisted download job."""
+    return StreamingResponse(
+        download_orchestrator.tracker.stream(job_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -557,7 +725,8 @@ def get_languages() -> ApiResponse[list[dict]]:
 
 @app.get("/api/v1/models")
 def get_models() -> ApiResponse[list[dict]]:
-    return ApiResponse(data=chat_service.list_models())
+    local_models = chat_service.list_models()
+    return ApiResponse(data=[_enrich_local_model(item) for item in local_models])
 
 
 @app.post("/api/v1/knowledge-bases")

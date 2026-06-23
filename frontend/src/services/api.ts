@@ -9,6 +9,24 @@ export type ModelInfo = {
   size: number
   modified_at: string
   digest: string
+  provider?: string
+  param_size?: string
+  score_total?: number
+  score_quality?: number
+  score_speed?: number
+  score_fit?: number
+  score_context?: number
+  fit_level?: string
+  estimated_tps?: number
+  quantization?: string
+  memory_required_gb?: number
+  vram_required_gb?: number
+  run_mode?: string
+  use_case?: string
+  max_context?: number
+  is_moe?: boolean
+  available?: boolean
+  source?: string
 }
 
 export type SessionInfo = {
@@ -281,6 +299,7 @@ export type DownloadPullResponse = {
 }
 
 export type DownloadProgressEvent = {
+  job_id: string
   model_name: string
   status: string
   downloaded_bytes: number

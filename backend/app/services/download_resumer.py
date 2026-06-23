@@ -127,6 +127,30 @@ class DownloadResumer:
                 ).fetchall()
         return [_row_to_job(dict(r)) for r in rows]
 
+    def mark_started(
+        self,
+        job_id: str,
+        *,
+        source_name: str = "",
+        source_url: str = "",
+    ) -> None:
+        now = _now()
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE download_jobs
+                SET source_name = ?,
+                    source_url = ?,
+                    status = 'downloading',
+                    error_message = '',
+                    started_at = CASE WHEN started_at = '' THEN ? ELSE started_at END,
+                    last_progress_at = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (source_name, source_url, now, now, now, job_id),
+            )
+
     def update_progress(self, job_id: str, downloaded_bytes: int, total_bytes: int = 0) -> None:
         now = _now()
         with get_connection() as conn:

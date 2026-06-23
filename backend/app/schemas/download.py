@@ -38,6 +38,7 @@ class DownloadJobDTO(BaseModel):
 
 class DownloadProgressEvent(BaseModel):
     """Single SSE event payload during download."""
+    job_id: str = ""
     model_name: str
     status: str
     downloaded_bytes: int = 0

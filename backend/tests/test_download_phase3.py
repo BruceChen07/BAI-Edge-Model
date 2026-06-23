@@ -11,6 +11,7 @@ from app.main import app, download_orchestrator
 from app.core.database import init_db
 
 import asyncio
+import threading
 from unittest.mock import patch
 
 import pytest
@@ -35,6 +36,11 @@ if TEST_DB_PATH.exists():
 
 client = TestClient(app)
 init_db()
+
+
+class ImmediateThread(threading.Thread):
+    def start(self) -> None:
+        self.run()
 
 
 @pytest.fixture(autouse=True)
@@ -219,20 +225,35 @@ class TestDownloadOrchestrator:
         assert plan.model_name == "qwen3:8b"
         assert len(plan.sources) >= 1
 
-    @patch("app.services.ollama_service.OllamaService.pull_model")
-    def test_pull_model_ollama_success(self, mock_pull, orchestrator):
-        mock_pull.return_value = {"status": "success"}
+    @patch("app.services.download_orchestrator.threading.Thread", ImmediateThread)
+    @patch("app.services.ollama_service.OllamaService.iter_pull_progress")
+    def test_pull_model_ollama_success(self, mock_stream, orchestrator):
+        mock_stream.return_value = iter([
+            {"status": "pulling manifest"},
+            {"status": "downloading", "completed": 25, "total": 100},
+            {"status": "downloading", "completed": 100, "total": 100},
+            {"status": "success"},
+        ])
         result = orchestrator.pull_model("qwen3:8b", source="auto")
-        assert result["status"] == "completed"
-        assert result["source"] == "ollama"
+        assert result["status"] == "accepted"
+        assert "job_id" in result
+        job = orchestrator.get_job(result["job_id"])
+        assert job.status == "completed"
+        assert job.source_name == "ollama"
+        assert job.downloaded_bytes == 100
+        assert job.total_bytes == 100
 
+    @patch("app.services.download_orchestrator.threading.Thread", ImmediateThread)
     @patch("app.services.ollama_service.OllamaService.pull_model")
     def test_pull_model_fallback_to_http_source(self, mock_pull, orchestrator):
         mock_pull.side_effect = RuntimeError("ollama down")
         result = orchestrator.pull_model("qwen3:8b", source="modelscope")
-        assert result["status"] == "completed"
-        assert result["source"] == "modelscope"
+        assert result["status"] == "accepted"
         assert "job_id" in result
+        job = orchestrator.get_job(result["job_id"])
+        assert job.status == "completed"
+        assert job.source_name == "modelscope"
+        assert job.downloaded_bytes == job.total_bytes
 
     def test_pause_existing_job(self, orchestrator):
         job = orchestrator.create_job("qwen3:8b")
@@ -255,6 +276,7 @@ class TestDownloadApi:
         assert data["model_name"] == "qwen3:8b"
         assert len(data["sources"]) >= 1
 
+    @patch("app.services.download_orchestrator.threading.Thread", ImmediateThread)
     def test_download_pull_endpoint(self):
         with patch("app.services.ollama_service.OllamaService.pull_model", side_effect=RuntimeError("down")):
             response = client.post(
@@ -263,8 +285,41 @@ class TestDownloadApi:
             )
         assert response.status_code == 200
         data = response.json()["data"]
-        assert data["status"] == "completed"
-        assert data["source"] == "modelscope"
+        assert data["status"] == "accepted"
+        assert data["job_id"]
+
+        detail = client.get(f"/api/v1/download/jobs/{data['job_id']}")
+        assert detail.status_code == 200
+        assert detail.json()["data"]["status"] == "completed"
+        assert detail.json()["data"]["source_name"] == "modelscope"
+
+    @patch("app.services.download_orchestrator.threading.Thread", ImmediateThread)
+    def test_download_pull_ollama_creates_job(self):
+        with patch(
+            "app.services.ollama_service.OllamaService.iter_pull_progress",
+            return_value=iter([
+                {"status": "downloading", "completed": 50, "total": 200},
+                {"status": "downloading", "completed": 200, "total": 200},
+                {"status": "success"},
+            ]),
+        ):
+            response = client.post(
+                "/api/v1/download/pull",
+                json={"model_name": "qwen3:8b", "source": "auto"},
+            )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["status"] == "accepted"
+        assert data["job_id"]
+
+        detail = client.get(f"/api/v1/download/jobs/{data['job_id']}")
+        assert detail.status_code == 200
+        payload = detail.json()["data"]
+        assert payload["status"] == "completed"
+        assert payload["source_name"] == "ollama"
+        assert payload["downloaded_bytes"] == 200
+        assert payload["total_bytes"] == 200
 
     def test_download_jobs_endpoint(self):
         download_orchestrator.create_job("qwen3:8b")

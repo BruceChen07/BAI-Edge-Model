@@ -1,0 +1,209 @@
+.markdown-renderer {
+  background: var(--md-bg);
+  color: var(--md-text-primary);
+  border: 1px solid var(--md-border);
+  border-radius: 20px;
+  box-shadow: var(--md-shadow);
+  overflow: hidden;
+}
+
+.markdown-renderer-body {
+  padding: 20px 24px 24px;
+  background: var(--md-surface);
+}
+
+.markdown-renderer-body > :first-child {
+  margin-top: 0;
+}
+
+.markdown-renderer-body > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-renderer h1,
+.markdown-renderer h2,
+.markdown-renderer h3,
+.markdown-renderer h4,
+.markdown-renderer h5,
+.markdown-renderer h6 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--md-heading);
+  margin: 1.25em 0 0.6em;
+  line-height: 1.25;
+}
+
+.markdown-renderer .markdown-heading-anchor {
+  opacity: 0;
+  text-decoration: none;
+  color: var(--md-link);
+  transition: opacity 0.2s ease;
+}
+
+.markdown-renderer h1:hover .markdown-heading-anchor,
+.markdown-renderer h2:hover .markdown-heading-anchor,
+.markdown-renderer h3:hover .markdown-heading-anchor,
+.markdown-renderer h4:hover .markdown-heading-anchor {
+  opacity: 1;
+}
+
+.markdown-renderer p,
+.markdown-renderer ul,
+.markdown-renderer ol,
+.markdown-renderer blockquote,
+.markdown-renderer table,
+.markdown-renderer pre {
+  margin: 0 0 16px;
+}
+
+.markdown-renderer li + li {
+  margin-top: 6px;
+}
+
+.markdown-renderer a {
+  color: var(--md-link);
+  text-decoration: none;
+}
+
+.markdown-renderer a:hover {
+  color: var(--md-link-hover);
+  text-decoration: underline;
+}
+
+.markdown-renderer code {
+  padding: 0.18em 0.45em;
+  border-radius: 6px;
+  background: var(--md-inline-code-bg);
+  color: var(--md-inline-code-text);
+  font-size: 0.92em;
+}
+
+.markdown-renderer pre code {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.markdown-renderer blockquote {
+  padding: 14px 18px;
+  border-left: 4px solid var(--md-quote-border);
+  border-radius: 0 14px 14px 0;
+  background: var(--md-quote-bg);
+  color: var(--md-text-secondary);
+}
+
+.markdown-renderer hr {
+  border: 0;
+  border-top: 1px solid var(--md-border);
+  margin: 24px 0;
+}
+
+.markdown-renderer img {
+  max-width: 100%;
+  border-radius: 12px;
+}
+
+.markdown-table-scroll {
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+
+.markdown-renderer table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  background: var(--md-surface);
+}
+
+.markdown-renderer th,
+.markdown-renderer td {
+  border: 1px solid var(--md-border);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.markdown-renderer th {
+  background: color-mix(in srgb, var(--md-surface-elevated) 90%, white 10%);
+  color: var(--md-heading);
+}
+
+.markdown-code-block {
+  border: 1px solid var(--md-code-border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--md-code-bg);
+}
+
+.markdown-code-fallback {
+  margin: 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+  color: #e2e8f0;
+}
+
+.markdown-code-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--md-code-header-bg);
+  border-bottom: 1px solid var(--md-code-border);
+}
+
+.markdown-code-toolbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #cbd5e1;
+}
+
+.markdown-code-toolbar-label {
+  font-size: 12px;
+}
+
+.markdown-mermaid,
+.markdown-mermaid-loading,
+.markdown-mermaid-error {
+  padding: 18px;
+  border: 1px solid var(--md-border);
+  border-radius: 16px;
+  background: var(--md-surface-elevated);
+  margin-bottom: 16px;
+}
+
+.markdown-mermaid {
+  overflow-x: auto;
+}
+
+.markdown-mermaid svg {
+  display: block;
+  min-width: 480px;
+  margin: 0 auto;
+}
+
+.markdown-mermaid-error-title {
+  margin-bottom: 8px;
+  font-weight: 700;
+  color: var(--md-warning);
+}
+
+.markdown-virtualized-shell {
+  overflow: auto;
+  padding: 20px 24px 24px;
+  background: var(--md-surface);
+}
+
+.markdown-virtualized-row {
+  padding-bottom: 16px;
+}
+
+.markdown-chat-content .markdown-renderer-body,
+.markdown-chat-content .markdown-virtualized-shell {
+  padding: 14px 16px 16px;
+}
+
+.markdown-chat-content .markdown-renderer {
+  border-radius: 16px;
+}

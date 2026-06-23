@@ -59,8 +59,7 @@ Navigation Bar
 ├── Knowledge Bases   <-- NEW
 ├── Model Catalog
 ├── Downloads
-├── Admin
-└── Markdown Studio
+└── Admin
 ```
 
 ### 2.2 Page Layout

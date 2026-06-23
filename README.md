@@ -365,7 +365,9 @@ BAI-Edge-Model/
 │   │   │       └── markdownUtils.ts       # Chunking + sanitizer
 │   │   ├── pages/
 │   │   │   ├── ChatPage.tsx          # Main chat UI
-│   │   │   ├── MarkdownStudioPage.tsx # Markdown prototype / preview
+│   │   │   ├── DownloadPage.tsx      # Download management UI
+│   │   │   ├── KnowledgeBaseManagePage.tsx # Knowledge base management UI
+│   │   │   ├── ModelCatalogPage.tsx  # Model catalog UI
 │   │   │   └── AdminPage.tsx         # Admin panel
 │   │   ├── services/api.ts           # API client + types
 │   │   ├── i18n/messages.ts          # Internationalization
