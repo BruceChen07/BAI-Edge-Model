@@ -148,3 +148,106 @@
 | Cache invalidation works (refresh, TTL expiry) | PASS |
 | Timeout handling triggers fallback (no crash) | PASS |
 | Malformed JSON from llmfit triggers fallback (no crash) | PASS |
+
+---
+
+# Phase 2: Model Catalog & Frontend
+
+**Date**: 2026-06-23  
+**Result**: **34/34 PASSED** (0 Failed, 0 Skipped)
+
+## Test Execution Summary
+
+| Module | Test Class | Tests | Passed | Failed |
+|--------|-----------|-------|--------|--------|
+| DTO Conversion | TestRowToDTO | 3 | 3 | 0 |
+| CRUD | TestCRUD | 9 | 9 | 0 |
+| Batch | TestUpsertBatch | 4 | 4 | 0 |
+| List/Filters | TestListFilters | 12 | 12 | 0 |
+| Search | TestSearch | 5 | 5 | 0 |
+| Count | TestCount | 2 | 2 | 0 |
+| **Total** | **6 classes** | **34** | **34** | **0** |
+
+**Execution time**: 8.61s  
+
+## Detailed Test Cases
+
+### 1. TestRowToDTO (3 tests) — SQLite Row to DTO Conversion
+
+| # | Test Name | Category | Input | Expected | Result |
+|---|-----------|----------|-------|----------|--------|
+| 1.1 | `test_basic_conversion` | Correctness | Full row dict with all fields | All DTO fields match | PASS |
+| 1.2 | `test_str_tags_conversion` | Parsing | `tags='["chat","code"]'` (JSON string) | `tags` parsed to `list[str]` | PASS |
+| 1.3 | `test_invalid_tags_json` | Edge | `tags="not-json"` | Returns empty list, no crash | PASS |
+
+### 2. TestCRUD (9 tests) — Create/Read/Update/Delete
+
+| # | Test Name | Category | Input | Expected | Result |
+|---|-----------|----------|-------|----------|--------|
+| 2.1 | `test_upsert_creates_new` | Correctness | Upsert new entry | Created, count=1 | PASS |
+| 2.2 | `test_upsert_updates_existing` | Correctness | Upsert same model_name with changed score | Updated in-place, count still 1 | PASS |
+| 2.3 | `test_get_by_id` | Correctness | Get by id after upsert | Returns correct DTO | PASS |
+| 2.4 | `test_get_by_id_not_found` | Edge | Nonexistent id | Returns None | PASS |
+| 2.5 | `test_get_by_model_name` | Correctness | Get by model_name | Returns correct DTO | PASS |
+| 2.6 | `test_get_by_model_name_not_found` | Edge | Nonexistent model_name | Returns None | PASS |
+| 2.7 | `test_delete` | Correctness | Delete existing entry | Returns True, count=0 | PASS |
+| 2.8 | `test_delete_not_found` | Edge | Delete nonexistent entry | Returns False | PASS |
+| 2.9 | `test_clear` | Correctness | Clear all entries | Returns deleted count, count=0 | PASS |
+
+### 3. TestUpsertBatch (4 tests) — Batch Operations
+
+| # | Test Name | Category | Input | Expected | Result |
+|---|-----------|----------|-------|----------|--------|
+| 3.1 | `test_batch_insert` | Correctness | Batch insert 2 entries | synced=2, updated=0 | PASS |
+| 3.2 | `test_batch_mixed` | Correctness | Pre-seed one, batch with update | updated=1, synced=1 | PASS |
+| 3.3 | `test_batch_empty` | Edge | Empty list | synced=0, updated=0 | PASS |
+| 3.4 | `test_batch_error_handling` | Robustness | Valid entry batch | No crash, synced >= 0 | PASS |
+
+### 4. TestListFilters (12 tests) — List with Filters
+
+| # | Test Name | Category | Input | Expected | Result |
+|---|-----------|----------|-------|----------|--------|
+| 4.1 | `test_list_all` | Correctness | No filters | total=2, all items | PASS |
+| 4.2 | `test_filter_provider` | Filter | provider="Qwen" | total=1, correct provider | PASS |
+| 4.3 | `test_filter_param_size` | Filter | param_size="3B" | total=1, correct size | PASS |
+| 4.4 | `test_filter_fit_level` | Filter | fit_level="perfect" | total=1, correct fit | PASS |
+| 4.5 | `test_filter_min_score` | Filter | min_score=80 | total=1, score >= 80 | PASS |
+| 4.6 | `test_filter_combined` | Filter | provider + fit_level | total=1 | PASS |
+| 4.7 | `test_filter_no_match` | Edge | provider="nonexistent" | total=0 | PASS |
+| 4.8 | `test_sort_by_tps` | Sort | sort_by="estimated_tps" | Descending TPS order | PASS |
+| 4.9 | `test_sort_by_model_name` | Sort | sort_by="model_name", asc | Alphabetical order | PASS |
+| 4.10 | `test_offset_limit` | Pagination | offset=1, limit=1 | total=2, items=1 | PASS |
+| 4.11 | `test_invalid_sort_column` | Edge | sort_by="invalid_column" | Defaults to score_total, no crash | PASS |
+
+### 5. TestSearch (5 tests) — Full-Text Search
+
+| # | Test Name | Category | Input | Expected | Result |
+|---|-----------|----------|-------|----------|--------|
+| 5.1 | `test_search_by_name` | Correctness | q="qwen" | 1 result, name contains "qwen" | PASS |
+| 5.2 | `test_search_by_provider` | Correctness | q="Meta" | 1 result, provider="Meta" | PASS |
+| 5.3 | `test_search_by_description` | Correctness | q="Strong general-purpose" | 1 result | PASS |
+| 5.4 | `test_search_no_match` | Edge | q="zzzzzzzz" | total=0 | PASS |
+| 5.5 | `test_search_empty_query` | Edge | q="" | Falls back to list_all | PASS |
+
+### 6. TestCount (2 tests)
+
+| # | Test Name | Category | Input | Expected | Result |
+|---|-----------|----------|-------|----------|--------|
+| 6.1 | `test_empty` | Correctness | No entries | count=0 | PASS |
+| 6.2 | `test_with_entries` | Correctness | 2 entries | count=2 | PASS |
+
+## Phase 2 Acceptance Criteria — Final Verification
+
+| Criteria | Result |
+|----------|--------|
+| All 34 unit tests pass | PASS |
+| DB table created with correct schema and indexes | PASS |
+| CRUD operations work correctly | PASS |
+| Batch upsert with update detection | PASS |
+| Multi-field filtering (provider, size, fit, min_score) | PASS |
+| Sorting (TPS, name) with direction | PASS |
+| Pagination (offset/limit) with total count | PASS |
+| Full-text search (name, provider, description, tags) | PASS |
+| Sync script imports from curated catalog | PASS |
+| Frontend builds successfully (tsc + vite) | PASS |
+| 4 API endpoints reachable | PASS |

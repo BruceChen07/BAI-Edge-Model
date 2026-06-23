@@ -43,7 +43,7 @@
 ### Code Commits
 | Commit | Description |
 |--------|-------------|
-| TBD | feat: Phase 2 model catalog — DB, service, sync, frontend, 34 tests |
+| `6a30323` | feat: Phase 2 model catalog — DB, service, sync, frontend, 34 tests |
 
 ### Risk Register Update
 
