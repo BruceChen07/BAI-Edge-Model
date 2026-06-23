@@ -22,6 +22,7 @@ from app.schemas.common import ApiResponse
 from app.schemas.export import ExportRequestDTO
 from app.schemas.knowledge_base import KnowledgeBaseCreateDTO, KnowledgeBaseUpdateDTO
 from app.schemas.catalog import CatalogSearchRequest
+from app.schemas.download import DownloadPullRequest
 from app.schemas.memory import (
     MemoryConfigDTO,
     MemoryCreateDTO,
@@ -30,6 +31,7 @@ from app.schemas.memory import (
 from app.schemas.settings import SettingsUpdateDTO
 from app.services.agent_service import AgentService
 from app.services.chat_service import ChatService
+from app.services.download_orchestrator import DownloadOrchestrator
 from app.services.export_service import ExportService
 from app.services.ingest_service import IngestService
 from app.services.knowledge_base_service import KnowledgeBaseService
@@ -92,6 +94,7 @@ memory_service = MemoryService()
 memory_orchestrator = MemoryOrchestrator()
 llmfit_service = LlmfitService()
 catalog_service = ModelCatalogService()
+download_orchestrator = DownloadOrchestrator()
 agent_service = AgentService()
 export_service = ExportService()
 task_service = TaskService()
@@ -450,6 +453,70 @@ def catalog_sync(payload: dict | None = None) -> ApiResponse[dict]:
         "count_before": count,
         "hint": "Run: python -m scripts.sync_model_catalog --source " + source,
     })
+
+
+# ---------------------------------------------------------------------------
+# Download — multi-source download with resumption & SSE progress
+# ---------------------------------------------------------------------------
+
+@app.post("/api/v1/download/pull")
+def download_pull(payload: DownloadPullRequest) -> ApiResponse[dict]:
+    """Pull a model with multi-source fallback (Ollama → HF → ModelScope)."""
+    result = download_orchestrator.pull_model(
+        model_name=payload.model_name,
+        source=payload.source,
+        download_url=payload.download_url,
+        chunk_size=payload.chunk_size,
+    )
+    return ApiResponse(data=result)
+
+
+@app.get("/api/v1/download/plan/{model_name:path}")
+def download_plan(model_name: str, source: str = "auto") -> ApiResponse[dict]:
+    """Return the resolved multi-source download plan for a model."""
+    plan = download_orchestrator.resolve_plan(model_name, prefer=source)
+    return ApiResponse(data=plan.model_dump())
+
+
+@app.get("/api/v1/download/progress/{model_name:path}")
+async def download_progress(model_name: str) -> StreamingResponse:
+    """SSE endpoint for real-time download progress."""
+    return StreamingResponse(
+        download_orchestrator.tracker.stream(model_name),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/v1/download/jobs")
+def download_jobs(status: str | None = None) -> ApiResponse[dict]:
+    """List download jobs, optionally filtered by status."""
+    jobs = download_orchestrator.list_jobs(status=status)
+    return ApiResponse(data={
+        "total": len(jobs),
+        "items": [j.model_dump() for j in jobs],
+    })
+
+
+@app.get("/api/v1/download/jobs/{job_id}")
+def download_job_detail(job_id: str) -> ApiResponse[dict]:
+    """Get a single download job by ID."""
+    try:
+        job = download_orchestrator.get_job(job_id)
+        return ApiResponse(data=job.model_dump())
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+
+
+@app.post("/api/v1/download/jobs/{job_id}/pause")
+def download_job_pause(job_id: str) -> ApiResponse[dict]:
+    """Pause an active download job."""
+    download_orchestrator.pause(job_id)
+    return ApiResponse(data={"message": "paused", "job_id": job_id})
 
 
 @app.get("/api/v1/settings")

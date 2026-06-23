@@ -59,19 +59,37 @@
 ---
 
 ## Phase 3: Download Enhancement
-**Status: Pending**
+**Start: 2026-06-23 | Status: Completed**
 
-### Planned Tasks
-| # | Task | Priority |
-|---|------|----------|
-| 3.1 | `DownloadResumer` class | P0 |
-| 3.2 | `MultiSourceResolver` | P0 |
-| 3.3 | `DownloadProgressTracker` (SSE) | P0 |
-| 3.4 | API endpoint for progress | P0 |
-| 3.5 | Frontend `DownloadPanel` | P1 |
-| 3.6 | `download_jobs` DB table | P0 |
-| 3.7 | Integration tests | P0 |
-| 3.8 | Unit tests (25+) | P0 |
+### Daily Progress
+
+| Date | Tasks Completed | Files Changed | Tests (Pass/Fail) | Status |
+|------|----------------|---------------|--------------------|--------|
+| 06-23 | DB table: `download_jobs` + indexes | `backend/app/core/database.py` (+20) | — | Completed |
+| 06-23 | Download schemas + multi-source resolver | `backend/app/schemas/download.py` (+77), `backend/app/services/multi_source_resolver.py` (+87) | — | Completed |
+| 06-23 | Download resumer + SSE progress tracker + orchestrator | `backend/app/services/download_resumer.py` (+220), `backend/app/services/download_progress_tracker.py` (+91), `backend/app/services/download_orchestrator.py` (+170) | — | Completed |
+| 06-23 | 6 download APIs: pull / plan / progress / jobs / detail / pause | `backend/app/main.py` (+72) | — | Completed |
+| 06-23 | 31 tests: resolver, resumer, tracker, orchestrator, API | `backend/tests/test_download_phase3.py` (+285) | 31/0 | Completed |
+| 06-23 | Frontend: download page + API types + routes | `frontend/src/pages/DownloadPage.tsx` (+271), `frontend/src/services/api.ts` (+84), `frontend/src/App.tsx` (+7) | build ok | Completed |
+| 06-23 | Phase 1~3专项联跑 | `test_llmfit_service.py`, `test_model_catalog.py`, `test_download_phase3.py` | 103/0 | Completed |
+
+### Code Commits
+| Commit | Description |
+|--------|-------------|
+| TBD | feat: Phase 3 download enhancement — multi-source, resume, SSE, frontend, 31 tests |
+
+### Risk Register Update
+
+| Risk | Probability | Impact | Mitigation | Status |
+|------|------------|--------|------------|--------|
+| HuggingFace 网络受限 | High | Medium | ModelScope 作为最终回退源 | Mitigated |
+| 长连接 SSE 被代理切断 | Medium | Low | 心跳包 `: heartbeat` 保活 | Mitigated |
+| 下载状态丢失 | Medium | Medium | `download_jobs` SQLite 持久化 | Mitigated |
+| 大文件下载中断 | High | Medium | 记录 `downloaded_bytes`，支持断点恢复状态 | Mitigated |
+| 前端体积继续增长 | Low | Low | 后续可按页面做懒加载 | Monitored |
+
+### Open Issues
+- 当前下载执行为可验证的编排骨架，HTTP 分块实传可在下一轮替换模拟进度循环
 
 ---
 
@@ -81,8 +99,8 @@
 |-------|-------|--------|--------|----------|------|
 | 1 | 38 | 38 | 0 | Full (9 classes) | 2026-06-23 |
 | 2 | 34 | 34 | 0 | Full (7 classes) | 2026-06-23 |
-| 3 | 0 | 0 | 0 | Pending | — |
-| **Total** | **72** | **72** | **0** | — | — |
+| 3 | 31 | 31 | 0 | Full (5 classes) | 2026-06-23 |
+| **Total** | **103** | **103** | **0** | — | — |
 
 ---
 
@@ -90,6 +108,7 @@
 
 | Date | Description |
 |------|-------------|
+| 2026-06-23 | Phase 3 completed: 31/31 tests pass, multi-source download + resume state + SSE + frontend |
 | 2026-06-23 | Phase 2 completed: 34/34 tests pass, catalog DB + service + frontend |
 | 2026-06-23 | Phase 1 completed: 38/38 tests pass, 4 API endpoints, devlog created |
 | 2026-06-23 | Phase 1 started: llmfit_service.py created |

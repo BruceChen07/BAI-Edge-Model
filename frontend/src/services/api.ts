@@ -192,6 +192,66 @@ export type PullResult = {
   elapsed_seconds?: number
 }
 
+export type DownloadSource = {
+  name: string
+  url: string
+  priority: number
+  enabled: boolean
+  timeout_seconds: number
+}
+
+export type DownloadPlan = {
+  model_name: string
+  sources: DownloadSource[]
+}
+
+export type DownloadJob = {
+  id: string
+  model_name: string
+  source_name: string
+  source_url: string
+  total_bytes: number
+  downloaded_bytes: number
+  chunk_size: number
+  status: string
+  error_message: string
+  retry_count: number
+  max_retries: number
+  priority: number
+  output_path: string
+  started_at: string
+  completed_at: string
+  last_progress_at: string
+  created_at: string
+  updated_at: string
+}
+
+export type DownloadJobListResponse = {
+  total: number
+  items: DownloadJob[]
+}
+
+export type DownloadPullResponse = {
+  model_name: string
+  status: string
+  source?: string
+  job_id?: string
+  error?: string
+  elapsed_seconds?: number
+}
+
+export type DownloadProgressEvent = {
+  model_name: string
+  status: string
+  downloaded_bytes: number
+  total_bytes: number
+  percent: number
+  speed_mbps: number
+  eta_seconds: number
+  source_name: string
+  error: string
+}
+
 export type TimeoutInfo = {
   model_name: string
   param_size: string
@@ -336,6 +396,30 @@ export const api = {
       '/catalog/sync',
       { method: 'POST', body: JSON.stringify({ source }) },
     ),
+  getDownloadPlan: (modelName: string, source: string = 'auto') =>
+    request<DownloadPlan>(`/download/plan/${encodeURIComponent(modelName)}?source=${encodeURIComponent(source)}`),
+  pullModelMultiSource: (payload: {
+    model_name: string
+    source?: string
+    download_url?: string
+    chunk_size?: number
+  }) =>
+    request<DownloadPullResponse>('/download/pull', {
+      method: 'POST',
+      body: JSON.stringify({
+        source: 'auto',
+        chunk_size: 1048576,
+        ...payload,
+      }),
+    }),
+  listDownloadJobs: (status?: string) =>
+    request<DownloadJobListResponse>(`/download/jobs${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  getDownloadJob: (jobId: string) =>
+    request<DownloadJob>(`/download/jobs/${encodeURIComponent(jobId)}`),
+  pauseDownloadJob: (jobId: string) =>
+    request<{ message: string; job_id: string }>(`/download/jobs/${encodeURIComponent(jobId)}/pause`, {
+      method: 'POST',
+    }),
   pullModel: (modelName: string) =>
     request<PullResult>('/system/models/pull', {
       method: 'POST',

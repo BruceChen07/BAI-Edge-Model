@@ -251,3 +251,93 @@
 | Sync script imports from curated catalog | PASS |
 | Frontend builds successfully (tsc + vite) | PASS |
 | 4 API endpoints reachable | PASS |
+
+---
+
+# Phase 3: Download Enhancement
+
+**Date**: 2026-06-23  
+**Result**: **31/31 PASSED** (0 Failed, 0 Skipped)
+
+## Test Execution Summary
+
+| Module | Test Class | Tests | Passed | Failed |
+|--------|-----------|-------|--------|--------|
+| Resolver | TestMultiSourceResolver | 6 | 6 | 0 |
+| Resumer | TestDownloadResumer | 11 | 11 | 0 |
+| Progress Tracker | TestDownloadProgressTracker | 4 | 4 | 0 |
+| Orchestrator | TestDownloadOrchestrator | 5 | 5 | 0 |
+| API | TestDownloadApi | 5 | 5 | 0 |
+| **Total** | **5 classes** | **31** | **31** | **0** |
+
+**Execution time**: 15.92s  
+
+## Detailed Test Cases
+
+### 1. TestMultiSourceResolver (6 tests)
+
+| # | Test Name | Category | Expected | Result |
+|---|-----------|----------|----------|--------|
+| 1.1 | `test_auto_plan_contains_all_sources` | Correctness | `auto` 返回 `ollama → huggingface → modelscope` | PASS |
+| 1.2 | `test_prefer_modelscope_only` | Correctness | `modelscope` 仅返回单源 | PASS |
+| 1.3 | `test_prefer_huggingface_only` | Correctness | `huggingface` 仅返回单源 | PASS |
+| 1.4 | `test_known_modelscope_mapping` | Mapping | 已知模型映射到正确 ModelScope repo | PASS |
+| 1.5 | `test_known_hf_mapping` | Mapping | 已知模型映射到正确 HuggingFace repo | PASS |
+| 1.6 | `test_unknown_model_fallback_mapping` | Edge | 未知模型回退到清洗后的通用路径 | PASS |
+
+### 2. TestDownloadResumer (11 tests)
+
+| # | Test Name | Category | Expected | Result |
+|---|-----------|----------|----------|--------|
+| 2.1 | `test_create_job_defaults` | Correctness | 创建任务默认值正确，输出路径自动生成 | PASS |
+| 2.2 | `test_get_job_by_model` | Read | 可按模型名获取最近任务 | PASS |
+| 2.3 | `test_list_jobs` | Read | 返回全部任务列表 | PASS |
+| 2.4 | `test_update_progress_sets_status` | Progress | 更新字节数后状态切换为 `downloading` | PASS |
+| 2.5 | `test_mark_completed` | State | 任务状态切换为 `completed` | PASS |
+| 2.6 | `test_mark_failed_increments_retry` | State | 失败后重试计数递增 | PASS |
+| 2.7 | `test_pause_marks_paused` | State | 暂停后状态为 `paused` | PASS |
+| 2.8 | `test_get_resume_offset` | Resume | 返回正确断点偏移 | PASS |
+| 2.9 | `test_can_resume_true_after_pause` | Resume | 已有进度且暂停后可恢复 | PASS |
+| 2.10 | `test_can_resume_false_when_zero_progress` | Edge | 0 进度时不可恢复 | PASS |
+| 2.11 | `test_get_job_missing_raises` | Error | 不存在任务抛 `ValueError` | PASS |
+
+### 3. TestDownloadProgressTracker (4 tests)
+
+| # | Test Name | Category | Expected | Result |
+|---|-----------|----------|----------|--------|
+| 3.1 | `test_subscribe_unsubscribe` | Correctness | 订阅与退订队列正常 | PASS |
+| 3.2 | `test_broadcast_puts_event` | Correctness | 广播事件进入队列 | PASS |
+| 3.3 | `test_stream_emits_event_and_terminal` | SSE | 数据事件和终态事件都能产出 | PASS |
+| 3.4 | `test_stream_heartbeat` | SSE | 超时后发送 `heartbeat` 保活 | PASS |
+
+### 4. TestDownloadOrchestrator (5 tests)
+
+| # | Test Name | Category | Expected | Result |
+|---|-----------|----------|----------|--------|
+| 4.1 | `test_resolve_plan` | Correctness | 编排器返回解析计划 | PASS |
+| 4.2 | `test_pull_model_ollama_success` | Fallback | Ollama 成功时直接完成 | PASS |
+| 4.3 | `test_pull_model_fallback_to_http_source` | Fallback | Ollama 失败后回退到 HTTP 源并创建任务 | PASS |
+| 4.4 | `test_pause_existing_job` | Control | 可暂停已有下载任务 | PASS |
+| 4.5 | `test_list_jobs` | Read | 可列出任务 | PASS |
+
+### 5. TestDownloadApi (5 tests)
+
+| # | Test Name | Category | Expected | Result |
+|---|-----------|----------|----------|--------|
+| 5.1 | `test_download_plan_endpoint` | API | `/download/plan/{model}` 返回源计划 | PASS |
+| 5.2 | `test_download_pull_endpoint` | API | `/download/pull` 返回完成状态和来源 | PASS |
+| 5.3 | `test_download_jobs_endpoint` | API | `/download/jobs` 返回任务列表 | PASS |
+| 5.4 | `test_download_job_detail_404` | API | 不存在任务返回 404 | PASS |
+| 5.5 | `test_download_job_pause_endpoint` | API | `/download/jobs/{id}/pause` 正常暂停 | PASS |
+
+## Phase 3 Acceptance Criteria — Final Verification
+
+| Criteria | Result |
+|----------|--------|
+| `download_jobs` 表与索引创建成功 | PASS |
+| Multi-source 优先级解析正确 | PASS |
+| 断点续传状态机正确记录下载进度 | PASS |
+| SSE 进度流可输出数据与心跳事件 | PASS |
+| 6 个下载相关 API 可访问 | PASS |
+| 前端下载页面构建通过 | PASS |
+| Phase 1~3 专项联跑 103 个测试全部通过 | PASS |

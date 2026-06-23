@@ -217,6 +217,29 @@ CREATE INDEX IF NOT EXISTS idx_catalog_param_size ON model_catalog(param_size);
 CREATE INDEX IF NOT EXISTS idx_catalog_fit ON model_catalog(fit_level, score_total);
 CREATE INDEX IF NOT EXISTS idx_catalog_use_case ON model_catalog(use_case);
 
+CREATE TABLE IF NOT EXISTS download_jobs (
+    id TEXT PRIMARY KEY,
+    model_name TEXT NOT NULL,
+    source_name TEXT NOT NULL DEFAULT '',
+    source_url TEXT NOT NULL DEFAULT '',
+    total_bytes INTEGER NOT NULL DEFAULT 0,
+    downloaded_bytes INTEGER NOT NULL DEFAULT 0,
+    chunk_size INTEGER NOT NULL DEFAULT 1048576,
+    status TEXT NOT NULL DEFAULT 'pending',
+    error_message TEXT DEFAULT '',
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    max_retries INTEGER NOT NULL DEFAULT 3,
+    priority INTEGER NOT NULL DEFAULT 2,
+    output_path TEXT NOT NULL DEFAULT '',
+    started_at TEXT DEFAULT '',
+    completed_at TEXT DEFAULT '',
+    last_progress_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_download_jobs_status ON download_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_download_jobs_model ON download_jobs(model_name);
+
 CREATE TABLE IF NOT EXISTS exports (
     id TEXT PRIMARY KEY,
     export_type TEXT NOT NULL,

@@ -13,6 +13,7 @@ import { messages, type Locale } from "./i18n/messages";
 import { ChatPage } from "./pages/ChatPage";
 import { AdminPage } from "./pages/AdminPage";
 import { ModelCatalogPage } from "./pages/ModelCatalogPage";
+import { DownloadPage } from "./pages/DownloadPage";
 
 const { Header, Content } = Layout;
 const { Paragraph, Title } = Typography;
@@ -53,6 +54,13 @@ function App() {
                 <Button type={isActive ? "primary" : "default"}>Catalog</Button>
               )}
             </NavLink>
+            <NavLink to="/downloads">
+              {({ isActive }) => (
+                <Button type={isActive ? "primary" : "default"}>
+                  Downloads
+                </Button>
+              )}
+            </NavLink>
             <Segmented<Locale>
               value={locale}
               options={[
@@ -68,6 +76,7 @@ function App() {
             <Route path="/" element={<ChatPage locale={locale} />} />
             <Route path="/admin" element={<AdminPage locale={locale} />} />
             <Route path="/catalog" element={<ModelCatalogPage />} />
+            <Route path="/downloads" element={<DownloadPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Content>
