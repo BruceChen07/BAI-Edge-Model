@@ -76,7 +76,7 @@
 ### Code Commits
 | Commit | Description |
 |--------|-------------|
-| TBD | feat: Phase 3 download enhancement — multi-source, resume, SSE, frontend, 31 tests |
+| `0dec159` | feat: Phase 3 download enhancement — multi-source, resume, SSE, frontend, 31 tests |
 
 ### Risk Register Update
 
