@@ -1,10 +1,18 @@
-﻿import { useState } from "react";
-import { App as AntdApp, Button, Layout, Segmented, Space, Typography } from "antd";
+import { useState } from "react";
+import {
+  App as AntdApp,
+  Button,
+  Layout,
+  Segmented,
+  Space,
+  Typography,
+} from "antd";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 
 import { messages, type Locale } from "./i18n/messages";
 import { ChatPage } from "./pages/ChatPage";
 import { AdminPage } from "./pages/AdminPage";
+import { ModelCatalogPage } from "./pages/ModelCatalogPage";
 
 const { Header, Content } = Layout;
 const { Paragraph, Title } = Typography;
@@ -28,12 +36,21 @@ function App() {
           <Space>
             <NavLink to="/">
               {({ isActive }) => (
-                <Button type={isActive ? "primary" : "default"}>{copy.navigation.home}</Button>
+                <Button type={isActive ? "primary" : "default"}>
+                  {copy.navigation.home}
+                </Button>
               )}
             </NavLink>
             <NavLink to="/admin">
               {({ isActive }) => (
-                <Button type={isActive ? "primary" : "default"}>{copy.navigation.admin}</Button>
+                <Button type={isActive ? "primary" : "default"}>
+                  {copy.navigation.admin}
+                </Button>
+              )}
+            </NavLink>
+            <NavLink to="/catalog">
+              {({ isActive }) => (
+                <Button type={isActive ? "primary" : "default"}>Catalog</Button>
               )}
             </NavLink>
             <Segmented<Locale>
@@ -50,6 +67,7 @@ function App() {
           <Routes>
             <Route path="/" element={<ChatPage locale={locale} />} />
             <Route path="/admin" element={<AdminPage locale={locale} />} />
+            <Route path="/catalog" element={<ModelCatalogPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Content>

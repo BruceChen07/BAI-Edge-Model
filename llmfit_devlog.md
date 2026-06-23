@@ -20,37 +20,41 @@
 | 06-23 | Project plan + devlog + test report | `docs/llmfit_integration_plan.md`, `docs/llmfit_test_report.md`, `llmfit_devlog.md` | — | Completed |
 
 ### Code Commits
-TBD — will commit after Phase 1 completion
+| Commit | Description |
+|--------|-------------|
+| `15d0f9d` | feat: Phase 1 llmfit integration — CLI adapter, 4 API endpoints, 38/38 tests |
+
+---
+
+## Phase 2: Model Catalog & Frontend
+**Start: 2026-06-23 | Status: Completed**
+
+### Daily Progress
+
+| Date | Tasks Completed | Files Changed | Tests (Pass/Fail) | Status |
+|------|----------------|---------------|--------------------|--------|
+| 06-23 | DB table: model_catalog (20 columns, 5 indexes) | `backend/app/core/database.py` (+25) | — | Completed |
+| 06-23 | Catalog DTO + service: CRUD, upsert_batch, list_all, search | `backend/app/schemas/catalog.py` (+66), `backend/app/services/model_catalog_service.py` (+240) | — | Completed |
+| 06-23 | Sync script: curated catalog + llmfit JSON import | `scripts/sync_model_catalog.py` (+135) | — | Completed |
+| 06-23 | 4 API endpoints: /catalog, /catalog/search, /catalog/{name}, /catalog/sync | `backend/app/main.py` (+58) | — | Completed |
+| 06-23 | 34 unit tests: DTO conversion, CRUD, batch, filters, search, count | `backend/tests/test_model_catalog.py` (+330) | 34/0 | Completed |
+| 06-23 | Frontend: ModelCatalogPage, ModelDetailModal, API types, routes | `frontend/src/pages/ModelCatalogPage.tsx` (+340), `frontend/src/services/api.ts` (+40), `frontend/src/App.tsx` (+8) | — | Completed |
+
+### Code Commits
+| Commit | Description |
+|--------|-------------|
+| TBD | feat: Phase 2 model catalog — DB, service, sync, frontend, 34 tests |
 
 ### Risk Register Update
 
 | Risk | Probability | Impact | Mitigation | Status |
 |------|------------|--------|------------|--------|
-| llmfit not installed on target | High | Medium | Graceful degrade to resource_monitor.py | Mitigated |
-| subprocess timeout on slow machines | Medium | Low | 30s timeout + cache | Monitored |
-| JSON output format change in llmfit | Low | Medium | Schema version check + unit tests | Monitored |
-| Cache contamination between tests | Medium | Low | `_cache_clear()` in setup_method | Resolved (06-23) |
-| Mock limit bypass | Low | Low | Added `results[:limit]` safeguard | Resolved (06-23) |
+| DB migration conflicts with existing schema | Low | Low | `CREATE TABLE IF NOT EXISTS` | Mitigated |
+| Sync script fails when llmfit not installed | High | Low | Falls back to curated catalog | Mitigated |
+| Frontend bundle size increase | Low | Low | ~30KB gzipped addition | Acceptable |
 
 ### Open Issues
-- None — Phase 1 complete, all acceptance criteria met
-
----
-
-## Phase 2: Model Catalog & Frontend
-**Status: Pending**
-
-### Planned Tasks
-| # | Task | Priority |
-|---|------|----------|
-| 2.1 | `model_catalog` DB table + migration | P0 |
-| 2.2 | `ModelCatalogService` CRUD operations | P0 |
-| 2.3 | Catalog sync script | P0 |
-| 2.4 | API endpoints (4) | P0 |
-| 2.5 | Frontend `ModelScoringPanel` | P1 |
-| 2.6 | Frontend `ModelDetailModal` | P1 |
-| 2.7 | API client TypeScript types | P0 |
-| 2.8 | Unit tests (20+) | P0 |
+- None — Phase 2 complete, all acceptance criteria met
 
 ---
 
@@ -76,9 +80,9 @@ TBD — will commit after Phase 1 completion
 | Phase | Total | Passed | Failed | Coverage | Date |
 |-------|-------|--------|--------|----------|------|
 | 1 | 38 | 38 | 0 | Full (9 classes) | 2026-06-23 |
-| 2 | 0 | 0 | 0 | Pending | — |
+| 2 | 34 | 34 | 0 | Full (7 classes) | 2026-06-23 |
 | 3 | 0 | 0 | 0 | Pending | — |
-| **Total** | **38** | **38** | **0** | — | — |
+| **Total** | **72** | **72** | **0** | — | — |
 
 ---
 
@@ -86,5 +90,6 @@ TBD — will commit after Phase 1 completion
 
 | Date | Description |
 |------|-------------|
+| 2026-06-23 | Phase 2 completed: 34/34 tests pass, catalog DB + service + frontend |
 | 2026-06-23 | Phase 1 completed: 38/38 tests pass, 4 API endpoints, devlog created |
 | 2026-06-23 | Phase 1 started: llmfit_service.py created |

@@ -134,14 +134,28 @@ CREATE TABLE IF NOT EXISTS memories (
     memory_type TEXT NOT NULL,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
+    content_hash TEXT NOT NULL DEFAULT '',
     importance REAL NOT NULL DEFAULT 0.5,
     confidence REAL NOT NULL DEFAULT 0.5,
     write_mode TEXT NOT NULL DEFAULT 'manual',
     status TEXT NOT NULL DEFAULT 'active',
+    source_session_id TEXT DEFAULT '',
+    access_count INTEGER NOT NULL DEFAULT 0,
+    last_accessed_at TEXT DEFAULT '',
+    expires_at TEXT DEFAULT '',
+    tags TEXT DEFAULT '[]',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_memories_status ON memories(memory_type, status, importance);
+CREATE INDEX IF NOT EXISTS idx_memories_hash ON memories(content_hash);
+CREATE INDEX IF NOT EXISTS idx_memories_session ON memories(source_session_id);
+-- FTS5 virtual table for full-text memory search
+CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+    title, content, tags,
+    content='memories',
+    content_rowid='rowid'
+);
 
 CREATE TABLE IF NOT EXISTS agent_runs (
     id TEXT PRIMARY KEY,
@@ -167,6 +181,41 @@ CREATE TABLE IF NOT EXISTS agent_steps (
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_agent_steps_run ON agent_steps(run_id, step_no);
+
+CREATE TABLE IF NOT EXISTS model_catalog (
+    id TEXT PRIMARY KEY,
+    model_name TEXT NOT NULL UNIQUE,
+    provider TEXT NOT NULL DEFAULT 'unknown',
+    param_size TEXT NOT NULL DEFAULT 'unknown',
+    version TEXT DEFAULT '',
+    score_total REAL NOT NULL DEFAULT 0,
+    score_quality REAL NOT NULL DEFAULT 0,
+    score_speed REAL NOT NULL DEFAULT 0,
+    score_fit REAL NOT NULL DEFAULT 0,
+    score_context REAL NOT NULL DEFAULT 0,
+    fit_level TEXT NOT NULL DEFAULT 'unknown',
+    estimated_tps REAL NOT NULL DEFAULT 0,
+    quantization TEXT NOT NULL DEFAULT 'Q4_K_M',
+    memory_required_gb REAL NOT NULL DEFAULT 0,
+    vram_required_gb REAL NOT NULL DEFAULT 0,
+    run_mode TEXT NOT NULL DEFAULT 'CPU',
+    use_case TEXT NOT NULL DEFAULT 'general',
+    max_context INTEGER NOT NULL DEFAULT 8192,
+    is_moe INTEGER NOT NULL DEFAULT 0,
+    available INTEGER NOT NULL DEFAULT 0,
+    description TEXT DEFAULT '',
+    tags TEXT DEFAULT '[]',
+    source TEXT NOT NULL DEFAULT 'manual',
+    raw_json TEXT DEFAULT '',
+    last_synced_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_catalog_name ON model_catalog(model_name);
+CREATE INDEX IF NOT EXISTS idx_catalog_provider ON model_catalog(provider);
+CREATE INDEX IF NOT EXISTS idx_catalog_param_size ON model_catalog(param_size);
+CREATE INDEX IF NOT EXISTS idx_catalog_fit ON model_catalog(fit_level, score_total);
+CREATE INDEX IF NOT EXISTS idx_catalog_use_case ON model_catalog(use_case);
 
 CREATE TABLE IF NOT EXISTS exports (
     id TEXT PRIMARY KEY,

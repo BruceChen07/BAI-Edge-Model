@@ -21,6 +21,7 @@ from app.schemas.chat import ChatRequestDTO, SessionCreateDTO
 from app.schemas.common import ApiResponse
 from app.schemas.export import ExportRequestDTO
 from app.schemas.knowledge_base import KnowledgeBaseCreateDTO, KnowledgeBaseUpdateDTO
+from app.schemas.catalog import CatalogSearchRequest
 from app.schemas.memory import (
     MemoryConfigDTO,
     MemoryCreateDTO,
@@ -34,6 +35,7 @@ from app.services.ingest_service import IngestService
 from app.services.knowledge_base_service import KnowledgeBaseService
 from app.services.llmfit_service import LlmfitService
 from app.services.log_service import LogService
+from app.services.model_catalog_service import ModelCatalogService
 from app.services.memory_orchestrator import MemoryOrchestrator
 from app.services.memory_service import MemoryService
 from app.services.model_download_service import ModelDownloadService
@@ -89,6 +91,7 @@ chat_service = ChatService()
 memory_service = MemoryService()
 memory_orchestrator = MemoryOrchestrator()
 llmfit_service = LlmfitService()
+catalog_service = ModelCatalogService()
 agent_service = AgentService()
 export_service = ExportService()
 task_service = TaskService()
@@ -297,7 +300,8 @@ def llmfit_system() -> ApiResponse[dict]:
 
 @app.get("/api/v1/llmfit/recommend")
 def llmfit_recommend(
-    use_case: str = Query("general", description="general|coding|reasoning|chat|multimodal|embedding"),
+    use_case: str = Query(
+        "general", description="general|coding|reasoning|chat|multimodal|embedding"),
     limit: int = Query(10, ge=1, le=50),
     min_fit: str = Query("marginal", description="perfect|good|marginal"),
     sort: str = Query("score", description="score|tps|params|mem|ctx"),
@@ -347,7 +351,8 @@ def llmfit_model_info(model_name: str) -> ApiResponse[dict]:
     """Return detailed info for a specific model from llmfit."""
     rec = llmfit_service.get_model_info(model_name)
     if rec is None:
-        raise HTTPException(status_code=404, detail=f"Model not found in llmfit: {model_name}")
+        raise HTTPException(
+            status_code=404, detail=f"Model not found in llmfit: {model_name}")
     return ApiResponse(data={
         "model_name": rec.model_name,
         "provider": rec.provider,
@@ -375,6 +380,76 @@ def llmfit_refresh_cache() -> ApiResponse[dict]:
     """Clear the llmfit in-memory cache to force fresh data."""
     llmfit_service.refresh_cache()
     return ApiResponse(data={"message": "llmfit cache cleared"})
+
+
+# ---------------------------------------------------------------------------
+# Model catalog — persistent model metadata with scores & hardware reqs
+# ---------------------------------------------------------------------------
+
+@app.get("/api/v1/catalog")
+def catalog_list(
+    provider: str | None = Query(None),
+    param_size: str | None = Query(None),
+    fit_level: str | None = Query(None),
+    use_case: str | None = Query(None),
+    run_mode: str | None = Query(None),
+    min_score: float | None = Query(None, ge=0, le=100),
+    sort_by: str = Query("score_total"),
+    sort_dir: str = Query("desc"),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+) -> ApiResponse[dict]:
+    """List model catalog with optional filters."""
+    result = catalog_service.list_all(
+        provider=provider,
+        param_size=param_size,
+        fit_level=fit_level,
+        use_case=use_case,
+        run_mode=run_mode,
+        min_score=min_score,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        offset=offset,
+        limit=limit,
+    )
+    return ApiResponse(data={
+        "total": result.total,
+        "items": [item.model_dump() for item in result.items],
+    })
+
+
+@app.get("/api/v1/catalog/search")
+def catalog_search(q: str = Query("", description="Search query")) -> ApiResponse[dict]:
+    """Full-text search across model catalog by name, provider, description, tags."""
+    result = catalog_service.search(query=q, limit=100)
+    return ApiResponse(data={
+        "total": result.total,
+        "items": [item.model_dump() for item in result.items],
+    })
+
+
+@app.get("/api/v1/catalog/{model_name:path}")
+def catalog_detail(model_name: str) -> ApiResponse[dict]:
+    """Get detailed info for a single model in the catalog."""
+    entry = catalog_service.get_by_model_name(model_name)
+    if entry is None:
+        raise HTTPException(
+            status_code=404, detail=f"Model not found in catalog: {model_name}")
+    return ApiResponse(data=entry.model_dump())
+
+
+@app.post("/api/v1/catalog/sync")
+def catalog_sync(payload: dict | None = None) -> ApiResponse[dict]:
+    """Sync catalog from curated model list or llmfit."""
+    source = (payload or {}).get("source", "curated")
+    msg = "catalog sync trigger received"
+    count = catalog_service.count()
+    return ApiResponse(data={
+        "message": msg,
+        "source": source,
+        "count_before": count,
+        "hint": "Run: python -m scripts.sync_model_catalog --source " + source,
+    })
 
 
 @app.get("/api/v1/settings")

@@ -135,6 +135,54 @@ export type CatalogItem = {
   feasible: boolean
 }
 
+// Model catalog (Phase 2) types
+export type CatalogEntry = {
+  id: string
+  model_name: string
+  provider: string
+  param_size: string
+  version: string
+  score_total: number
+  score_quality: number
+  score_speed: number
+  score_fit: number
+  score_context: number
+  fit_level: string
+  estimated_tps: number
+  quantization: string
+  memory_required_gb: number
+  vram_required_gb: number
+  run_mode: string
+  use_case: string
+  max_context: number
+  is_moe: boolean
+  available: boolean
+  description: string
+  tags: string[]
+  source: string
+  last_synced_at: string
+  created_at: string
+  updated_at: string
+}
+
+export type CatalogListParams = {
+  provider?: string
+  param_size?: string
+  fit_level?: string
+  use_case?: string
+  run_mode?: string
+  min_score?: number
+  sort_by?: string
+  sort_dir?: string
+  offset?: number
+  limit?: number
+}
+
+export type CatalogListResponse = {
+  total: number
+  items: CatalogEntry[]
+}
+
 export type PullResult = {
   action?: string
   model: string
@@ -264,6 +312,30 @@ export const api = {
     ),
   getModelCatalog: () =>
     request<CatalogItem[]>('/system/models/catalog'),
+  catalogList: (params: CatalogListParams = {}) => {
+    const searchParams = new URLSearchParams()
+    if (params.provider) searchParams.set('provider', params.provider)
+    if (params.param_size) searchParams.set('param_size', params.param_size)
+    if (params.fit_level) searchParams.set('fit_level', params.fit_level)
+    if (params.use_case) searchParams.set('use_case', params.use_case)
+    if (params.run_mode) searchParams.set('run_mode', params.run_mode)
+    if (params.min_score !== undefined) searchParams.set('min_score', String(params.min_score))
+    if (params.sort_by) searchParams.set('sort_by', params.sort_by)
+    if (params.sort_dir) searchParams.set('sort_dir', params.sort_dir)
+    if (params.offset !== undefined) searchParams.set('offset', String(params.offset))
+    if (params.limit !== undefined) searchParams.set('limit', String(params.limit))
+    const qs = searchParams.toString()
+    return request<CatalogListResponse>(`/catalog${qs ? '?' + qs : ''}`)
+  },
+  catalogSearch: (q: string) =>
+    request<CatalogListResponse>(`/catalog/search?q=${encodeURIComponent(q)}`),
+  catalogDetail: (modelName: string) =>
+    request<CatalogEntry>(`/catalog/${encodeURIComponent(modelName)}`),
+  catalogSync: (source: string = 'curated') =>
+    request<{ message: string; source: string; count_before: number; hint: string }>(
+      '/catalog/sync',
+      { method: 'POST', body: JSON.stringify({ source }) },
+    ),
   pullModel: (modelName: string) =>
     request<PullResult>('/system/models/pull', {
       method: 'POST',
