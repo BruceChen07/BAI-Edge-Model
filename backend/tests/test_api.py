@@ -13,7 +13,7 @@ from app.core.database import init_db
 from app.core.config import config
 from app.core.logging import setup_logging
 from app.schemas.chat import ChatResponseDTO
-from app.main import app, chat_service
+from app.main import app, chat_service, ingest_service
 
 test_db_path = config.project_root / "storage" / "test_bai_edge_model.db"
 object.__setattr__(config, "db_path", test_db_path)
@@ -45,6 +45,16 @@ def _create_xlsx_bytes() -> bytes:
     sheet["B2"] = "Local retrieval"
     workbook.save(buffer)
     return buffer.getvalue()
+
+
+def _screenshot_like_ocr_text() -> str:
+    return """# 1.6 深入剖析GPT架构
+
+在本章之前，我们提到了 GPT 类模型、GPT-3 和 ChatGPT。现在让我们更深入地了解通用的 GPT 架构。
+首先，GPT 是“生成预训练变换器”（Generative Pretrained Transformer）的缩写，最初是在以下论文中提出的：
+
+- 《通过生成预训练改善语言理解》（2018）是由 OpenAI 的 Radford 等人撰写的，链接：http://cdn.openai.com/researchcovers/language-unsupervised/language_understanding_paper.pdf
+""".strip()
 
 
 def test_system_info() -> None:
@@ -271,6 +281,75 @@ def test_knowledge_base_reindex_stats_and_chunk_pagination() -> None:
     assert payload["total"] >= 1
     assert len(payload["items"]) == 1
     assert payload["items"][0]["document_id"] == document_id
+
+
+def test_screenshot_source_question_uses_grounded_answer(monkeypatch) -> None:
+    monkeypatch.setattr(
+        chat_service.ollama_service,
+        "list_models",
+        lambda: [{"name": "qwen3.5:4b", "size": 1,
+                  "modified_at": "now", "digest": "abc"}],
+    )
+
+    llm_call_count = {"value": 0}
+
+    def _unexpected_llm_call(**_: object) -> str:
+        llm_call_count["value"] += 1
+        return "incorrect llm answer"
+
+    monkeypatch.setattr(chat_service.ollama_service,
+                        "chat", _unexpected_llm_call)
+    monkeypatch.setattr(
+        ingest_service.parser_service,
+        "extract_text",
+        lambda *args, **kwargs: (_screenshot_like_ocr_text(), "done"),
+    )
+
+    kb_response = client.post(
+        "/api/v1/knowledge-bases",
+        json={"name": "Screenshot KB", "description": "ocr"},
+    )
+    assert kb_response.status_code == 200
+    kb_id = kb_response.json()["data"]["id"]
+
+    upload_response = client.post(
+        f"/api/v1/knowledge-bases/{kb_id}/files/upload?enable_ocr=true",
+        files={
+            "file": (
+                "gpt-origin.png",
+                io.BytesIO(b"fake-image-content"),
+                "image/png",
+            )
+        },
+    )
+    assert upload_response.status_code == 200
+
+    session_response = client.post(
+        "/api/v1/sessions",
+        json={"title": "Screenshot Session"},
+    )
+    assert session_response.status_code == 200
+    session_id = session_response.json()["data"]["id"]
+
+    chat_response = client.post(
+        "/api/v1/chat/completions",
+        json={
+            "session_id": session_id,
+            "query": "GPT 是生成预训练变换器的缩写，最初是在哪个论文中提出的",
+            "model_name": "qwen3.5:4b",
+            "knowledge_base_ids": [kb_id],
+        },
+    )
+    assert chat_response.status_code == 200
+    payload = chat_response.json()["data"]
+    assert llm_call_count["value"] == 0
+    assert "《通过生成预训练改善语言理解》" in payload["answer"]
+    assert "2018" in payload["answer"]
+    assert "Radford" in payload["answer"]
+    assert "language_understanding_paper.pdf" in payload["answer"]
+    assert payload["citations"]
+    assert payload["citations"][0]["heading_path"] == "1.6 深入剖析GPT架构"
+    assert payload["citations"][0]["matched_terms"]
 
 
 def test_ollama_timeout_logs_are_queryable(monkeypatch) -> None:

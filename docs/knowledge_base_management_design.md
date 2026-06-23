@@ -258,12 +258,15 @@ User clicks "Reindex" → confirmation dialog → confirm
 - Added KB stats endpoint and UI display for storage size and token count
 - Added KB table search, sorting, and status filtering
 - Added Markdown / DOCX / XLSX export actions in the management page
+- Added screenshot-like OCR text grounding improvements for source-oriented Q&A
+- Added evidence-first answering for paper/source lookup questions
 
 ### Validation Result
-- Backend: `python -m pytest tests/test_api.py` -> `7 passed`
+- Backend: `python -m pytest tests/test_api.py` -> `8 passed`
 - Frontend: `npm run lint` -> passed
 - Frontend: `npm test -- --run` -> `14 passed`
 - Frontend: `npm run build` -> passed
+- Backend regression: screenshot-style OCR source question now returns the cited paper title, year, author, and link deterministically
 
 ---
 

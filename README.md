@@ -66,11 +66,13 @@ A local-first edge LLM platform with RAG (Retrieval-Augmented Generation), Agent
 ###  Knowledge Base Management
 - Upload PDF, DOCX, XLSX, PPTX, TXT files
 - Auto-parsing via **MinerU** (PDF) + **pytesseract** OCR for scanned documents
+- Screenshot / image OCR ingestion for knowledge extraction scenarios
 - Dedicated management page with search, sorting, rename, delete, and file operations
 - Chunk-level inspection with pagination and per-document filtering
 - Full reindex support with background task progress tracking
 - KB statistics including storage size, chunk count, and token count
 - KB export to Markdown, DOCX, and XLSX
+- Evidence-grounded source QA for screenshot-like professional knowledge points
 - Multi-knowledge-base selection per chat session
 
 ###  Agent Framework

@@ -12,7 +12,8 @@ from app.schemas.knowledge_base import (
     KnowledgeBaseDTO,
     KnowledgeBaseUpdateDTO,
 )
-from app.services.base import BaseService, chunk_text, sha256_text
+from app.services.base import BaseService, sha256_text
+from app.services.document_chunking import build_structured_chunks
 from app.services.parser_service import ParserService
 from app.services.task_service import TaskService
 from app.utils.ids import new_id
@@ -234,9 +235,11 @@ class KnowledgeBaseService(BaseService):
                     )
                     ocr_status = "missing"
 
-                chunks = chunk_text(extracted_text)
+                chunks = build_structured_chunks(extracted_text)
                 if not chunks:
-                    chunks = [f"No structured text extracted from {document['file_name']}."]
+                    chunks = build_structured_chunks(
+                        f"No structured text extracted from {document['file_name']}."
+                    )
 
                 with get_connection() as conn:
                     conn.execute(
@@ -248,18 +251,23 @@ class KnowledgeBaseService(BaseService):
                             """
                             INSERT INTO document_chunks (
                                 id, document_id, kb_id, chunk_index, content,
-                                content_hash, token_count, vector_ref
+                                content_hash, page_no, sheet_name, slide_no, heading_path,
+                                token_count, vector_ref
                             )
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (
                                 new_id("chunk"),
                                 document["id"],
                                 kb_id,
                                 chunk_index,
-                                chunk,
-                                sha256_text(chunk),
-                                len(chunk.split()),
+                                chunk.content,
+                                sha256_text(chunk.content),
+                                chunk.page_no,
+                                chunk.sheet_name,
+                                chunk.slide_no,
+                                chunk.heading_path,
+                                len(chunk.content.split()),
                                 f"local-vector://{document['id']}/{chunk_index}",
                             ),
                         )
