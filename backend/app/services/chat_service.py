@@ -168,13 +168,26 @@ class ChatService:
         scored.sort(key=lambda item: item[0], reverse=True)
         citations: list[dict] = []
         for score, row in scored[:top_k]:
+            row_content = str(row["content"]).lower()
+            row_file_name = str(row["file_name"]).lower()
+            matched_terms = [
+                term for term in query_terms
+                if term and (term in row_content or term in row_file_name)
+            ]
             citations.append({
                 "document_id": row["document_id"],
                 "chunk_id": row["id"],
+                "chunk_index": row["chunk_index"],
                 "quote_text": row["content"],
+                "quote_excerpt": self._build_quote_excerpt(row["content"], matched_terms),
                 "score": score,
                 "page_no": row["page_no"],
+                "sheet_name": row["sheet_name"],
+                "slide_no": row["slide_no"],
+                "heading_path": row["heading_path"],
                 "file_name": row["file_name"],
+                "matched_terms": matched_terms,
+                "source_label": self._build_source_label(dict(row)),
             })
         return citations
 
@@ -268,18 +281,76 @@ class ChatService:
         for citation in citations[:4]:
             blocks.append(
                 f"Source: {citation.get('file_name', 'unknown')}\n"
+                f"Locator: {citation.get('source_label', '')}\n"
                 f"Score: {citation.get('score', 0)}\n"
-                f"Content:\n{citation.get('quote_text', '')}"
+                f"Content:\n{citation.get('quote_excerpt') or citation.get('quote_text', '')}"
             )
         return "\n\n".join(blocks)
+
+    def _build_source_label(self, citation: dict) -> str:
+        location_parts: list[str] = [str(citation.get("file_name", "unknown"))]
+        if citation.get("page_no"):
+            location_parts.append(f"page {citation['page_no']}")
+        elif citation.get("sheet_name"):
+            location_parts.append(f"sheet {citation['sheet_name']}")
+        elif citation.get("slide_no"):
+            location_parts.append(f"slide {citation['slide_no']}")
+        else:
+            location_parts.append(f"chunk {citation.get('chunk_index', 0)}")
+
+        heading_path = str(citation.get("heading_path") or "").strip()
+        if heading_path:
+            location_parts.append(heading_path)
+        return " · ".join(location_parts)
+
+    def _build_quote_excerpt(
+        self,
+        quote_text: str,
+        matched_terms: list[str],
+        window: int = 110,
+    ) -> str:
+        normalized_text = " ".join(str(quote_text).split())
+        if not normalized_text:
+            return ""
+
+        lowered = normalized_text.lower()
+        match_index = -1
+        for term in matched_terms:
+            match_index = lowered.find(term.lower())
+            if match_index >= 0:
+                break
+
+        if match_index < 0:
+            return normalized_text[:220] + ("..." if len(normalized_text) > 220 else "")
+
+        start = max(0, match_index - window)
+        end = min(len(normalized_text), match_index + len(term) + window)
+        excerpt = normalized_text[start:end]
+        if start > 0:
+            excerpt = f"...{excerpt}"
+        if end < len(normalized_text):
+            excerpt = f"{excerpt}..."
+        return excerpt
 
     def _save_citations(self, message_id: str, citations: list[dict]) -> None:
         with get_connection() as conn:
             for citation in citations:
                 conn.execute(
-                    "INSERT INTO message_citations (id, message_id, document_id, chunk_id, page_no, quote_text) VALUES (?, ?, ?, ?, ?, ?)",
-                    (new_id("cite"), message_id, citation["document_id"],
-                     citation["chunk_id"], citation["page_no"], citation["quote_text"]),
+                    """
+                    INSERT INTO message_citations (
+                        id, message_id, document_id, chunk_id, page_no, sheet_name, slide_no, quote_text
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        new_id("cite"),
+                        message_id,
+                        citation["document_id"],
+                        citation["chunk_id"],
+                        citation.get("page_no"),
+                        citation.get("sheet_name", ""),
+                        citation.get("slide_no"),
+                        citation["quote_text"],
+                    ),
                 )
 
     def _sse(self, event: str, payload: dict) -> str:

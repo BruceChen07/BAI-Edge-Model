@@ -66,7 +66,11 @@ A local-first edge LLM platform with RAG (Retrieval-Augmented Generation), Agent
 ###  Knowledge Base Management
 - Upload PDF, DOCX, XLSX, PPTX, TXT files
 - Auto-parsing via **MinerU** (PDF) + **pytesseract** OCR for scanned documents
-- Chunk-level inspection and full reindex support
+- Dedicated management page with search, sorting, rename, delete, and file operations
+- Chunk-level inspection with pagination and per-document filtering
+- Full reindex support with background task progress tracking
+- KB statistics including storage size, chunk count, and token count
+- KB export to Markdown, DOCX, and XLSX
 - Multi-knowledge-base selection per chat session
 
 ###  Agent Framework
@@ -289,7 +293,8 @@ Users can override via the **Timeout Settings** button in the UI or the `PUT /ap
 | GET | `/api/v1/knowledge-bases/{id}/files` | List files |
 | DELETE | `/api/v1/knowledge-bases/{id}/files/{fid}` | Remove file |
 | POST | `/api/v1/knowledge-bases/{id}/reindex` | Force reindex |
-| GET | `/api/v1/knowledge-bases/{id}/chunks` | Inspect chunks |
+| GET | `/api/v1/knowledge-bases/{id}/chunks` | Inspect chunks with pagination and optional `document_id` filter |
+| GET | `/api/v1/knowledge-bases/{id}/stats` | Get KB storage and token statistics |
 
 ### Agent & Memory
 | Method | Path | Description |
@@ -432,4 +437,3 @@ The service auto-downloads a model on first startup. If it fails:
 ## License
 
 MIT
-

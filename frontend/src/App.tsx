@@ -12,6 +12,7 @@ import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { messages, type Locale } from "./i18n/messages";
 import { ChatPage } from "./pages/ChatPage";
 import { AdminPage } from "./pages/AdminPage";
+import { KnowledgeBaseManagePage } from "./pages/KnowledgeBaseManagePage";
 import { ModelCatalogPage } from "./pages/ModelCatalogPage";
 import { DownloadPage } from "./pages/DownloadPage";
 import { MarkdownStudioPage } from "./pages/MarkdownStudioPage";
@@ -64,6 +65,13 @@ function App() {
                 </Button>
               )}
             </NavLink>
+            <NavLink to="/knowledge-bases">
+              {({ isActive }) => (
+                <Button type={isActive ? "primary" : "default"}>
+                  {copy.navigation.knowledgeBases}
+                </Button>
+              )}
+            </NavLink>
             <NavLink to="/markdown-studio">
               {({ isActive }) => (
                 <Button type={isActive ? "primary" : "default"}>
@@ -92,6 +100,10 @@ function App() {
             <Route
               path="/downloads"
               element={<DownloadPage locale={locale} />}
+            />
+            <Route
+              path="/knowledge-bases"
+              element={<KnowledgeBaseManagePage locale={locale} />}
             />
             <Route
               path="/markdown-studio"

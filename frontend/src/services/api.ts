@@ -29,6 +29,46 @@ export type KnowledgeBaseInfo = {
   status: string
   file_count: number
   chunk_count: number
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export type KnowledgeBaseStats = {
+  kb_id: string
+  total_size_bytes: number
+  file_count: number
+  chunk_count: number
+  token_count: number
+}
+
+export type KnowledgeBaseChunk = {
+  id: string
+  document_id: string
+  kb_id: string
+  chunk_index: number
+  content: string
+  content_hash: string
+  page_no?: number | null
+  sheet_name?: string
+  slide_no?: number | null
+  heading_path?: string
+  token_count: number
+  vector_ref: string
+  created_at?: string | null
+  file_name?: string
+}
+
+export type KnowledgeBaseChunkPage = {
+  items: KnowledgeBaseChunk[]
+  total: number
+  offset: number
+  limit: number
+}
+
+export type ExportResult = {
+  export_id: string
+  file_name: string
+  file_path: string
 }
 
 export type ChatPayload = {
@@ -264,7 +304,7 @@ export type TimeoutInfo = {
   user_override: boolean
 }
 
-const API_BASE = 'http://127.0.0.1:8000/api/v1'
+export const API_BASE = 'http://127.0.0.1:8000/api/v1'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const isFormData = init?.body instanceof FormData
@@ -301,8 +341,70 @@ export const api = {
   getLanguages: () => request<Array<{ code: string; label: string }>>('/languages'),
   getModels: () => request<ModelInfo[]>('/models'),
   listKnowledgeBases: () => request<KnowledgeBaseInfo[]>('/knowledge-bases'),
+  deleteKnowledgeBase: (kbId: string) =>
+    request<{ deleted: boolean; kb_id: string }>(`/knowledge-bases/${kbId}`, {
+      method: 'DELETE',
+    }),
+  updateKnowledgeBase: (payload: {
+    id: string
+    name: string
+    description?: string
+  }) =>
+    request<KnowledgeBaseInfo>(`/knowledge-bases/${payload.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: payload.name,
+        description: payload.description ?? '',
+        status: 'ready',
+      }),
+    }),
+  listKnowledgeBaseFiles: (kbId: string) =>
+    request<Array<Record<string, unknown>>>(`/knowledge-bases/${kbId}/files`),
+  deleteKnowledgeBaseFile: (kbId: string, fileId: string) =>
+    request<{ deleted: boolean }>(
+      `/knowledge-bases/${kbId}/files/${fileId}`,
+      { method: 'DELETE' },
+    ),
+  getKnowledgeBaseStats: (kbId: string) =>
+    request<KnowledgeBaseStats>(`/knowledge-bases/${kbId}/stats`),
+  listKnowledgeBaseChunks: (payload: {
+    kbId: string
+    documentId?: string
+    offset?: number
+    limit?: number
+  }) => {
+    const params = new URLSearchParams()
+    if (payload.documentId) {
+      params.set('document_id', payload.documentId)
+    }
+    params.set('offset', String(payload.offset ?? 0))
+    params.set('limit', String(payload.limit ?? 50))
+    return request<KnowledgeBaseChunkPage>(
+      `/knowledge-bases/${payload.kbId}/chunks?${params.toString()}`,
+    )
+  },
+  reindexKnowledgeBase: (kbId: string) =>
+    request<Record<string, unknown>>(`/knowledge-bases/${kbId}/reindex`, {
+      method: 'POST',
+    }),
+  createMarkdownExport: (payload: { source_type: string; source_id: string; title: string }) =>
+    request<ExportResult>('/exports/markdown', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  createDocxExport: (payload: { source_type: string; source_id: string; title: string }) =>
+    request<ExportResult>('/exports/docx', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  createXlsxExport: (payload: { source_type: string; source_id: string; title: string }) =>
+    request<ExportResult>('/exports/xlsx', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   listSessions: () => request<SessionInfo[]>('/sessions'),
   listTasks: () => request<Array<Record<string, unknown>>>('/tasks'),
+  getTask: (taskId: string) => request<Record<string, unknown>>(`/tasks/${taskId}`),
   listMemories: () => request<Array<Record<string, unknown>>>('/memories'),
   createKnowledgeBase: (payload: { name: string; description?: string }) =>
     request<KnowledgeBaseInfo>('/knowledge-bases', {

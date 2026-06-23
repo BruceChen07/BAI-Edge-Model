@@ -8,6 +8,7 @@ type MessageBundle = {
     admin: string
     catalog: string
     downloads: string
+    knowledgeBases: string
     markdownStudio: string
   }
   panels: {
@@ -38,6 +39,52 @@ type MessageBundle = {
     uploadFiles: string
     uploadHint: string
     submitKnowledgeBase: string
+    citationScore: string
+    citationMatchedTerms: string
+    citationSource: string
+    citationSection: string
+    citationChunk: string
+    citationPage: string
+    citationSheet: string
+    citationSlide: string
+    citationQuote: string
+  }
+  kbManagement: {
+    pageTitle: string
+    searchPlaceholder: string
+    create: string
+    infoTab: string
+    filesTab: string
+    chunksTab: string
+    reindex: string
+    reindexing: string
+    exportMarkdown: string
+    exportDocx: string
+    exportXlsx: string
+    rename: string
+    save: string
+    deleteKb: string
+    deleteFile: string
+    deleteKbConfirm: string
+    deleteKbDesc: string
+    deleteFileConfirm: string
+    uploaded: string
+    deleted: string
+    renamed: string
+    reindexStarted: string
+    createdAt: string
+    updatedAt: string
+    storagePath: string
+    storageSize: string
+    tokenCount: string
+    chunkPreview: string
+    chunkIndex: string
+    fileName: string
+    filterAllFiles: string
+    parseStatus: string
+    ocrStatus: string
+    statusReady: string
+    statusOther: string
   }
   status: {
     loading: string
@@ -127,10 +174,11 @@ export const messages: Record<Locale, MessageBundle> = {
     subtitle: 'BAI端侧大模型',
     navigation: {
       home: '首页',
-      admin: '管理配置',
+      admin: '管理后台',
       catalog: '模型目录',
       downloads: '下载中心',
-      markdownStudio: 'Markdown工作台',
+      knowledgeBases: '知识库管理',
+      markdownStudio: 'Markdown 工作室',
     },
     panels: {
       system: '系统信息',
@@ -160,6 +208,52 @@ export const messages: Record<Locale, MessageBundle> = {
       uploadFiles: '导入文件',
       uploadHint: '支持 PDF、扫描版 PDF、DOC、DOCX。扫描版 PDF 会启用 OCR 识别。',
       submitKnowledgeBase: '创建并导入',
+      citationScore: '相关度',
+      citationMatchedTerms: '命中词',
+      citationSource: '出处定位',
+      citationSection: '章节',
+      citationChunk: '分块',
+      citationPage: '页码',
+      citationSheet: '工作表',
+      citationSlide: '幻灯片',
+      citationQuote: '引用内容',
+    },
+    kbManagement: {
+      pageTitle: '知识库管理',
+      searchPlaceholder: '按知识库名称搜索',
+      create: '创建知识库',
+      infoTab: '概览',
+      filesTab: '文件',
+      chunksTab: '分块',
+      reindex: '重建索引',
+      reindexing: '重建中',
+      exportMarkdown: '导出 Markdown',
+      exportDocx: '导出 DOCX',
+      exportXlsx: '导出 XLSX',
+      rename: '重命名',
+      save: '保存',
+      deleteKb: '删除知识库',
+      deleteFile: '删除文件',
+      deleteKbConfirm: '确认删除该知识库？',
+      deleteKbDesc: '该操作会永久删除该知识库下的全部文件与分块。',
+      deleteFileConfirm: '确认删除该文件？',
+      uploaded: '文件上传成功',
+      deleted: '删除成功',
+      renamed: '知识库已更新',
+      reindexStarted: '已开始重建索引',
+      createdAt: '创建时间',
+      updatedAt: '更新时间',
+      storagePath: '存储路径',
+      storageSize: '占用空间',
+      tokenCount: 'Token 总量',
+      chunkPreview: '内容预览',
+      chunkIndex: '分块序号',
+      fileName: '文件名',
+      filterAllFiles: '全部文件',
+      parseStatus: '解析状态',
+      ocrStatus: 'OCR 状态',
+      statusReady: '就绪',
+      statusOther: '处理中',
     },
     status: {
       loading: '加载中...',
@@ -250,6 +344,7 @@ export const messages: Record<Locale, MessageBundle> = {
       admin: 'Admin',
       catalog: 'Catalog',
       downloads: 'Downloads',
+      knowledgeBases: 'Knowledge Bases',
       markdownStudio: 'Markdown Studio',
     },
     panels: {
@@ -280,6 +375,52 @@ export const messages: Record<Locale, MessageBundle> = {
       uploadFiles: 'Import Files',
       uploadHint: 'Supports PDF, scanned PDF, DOC, and DOCX. OCR will be enabled for scanned PDFs.',
       submitKnowledgeBase: 'Create And Import',
+      citationScore: 'Score',
+      citationMatchedTerms: 'Matched Terms',
+      citationSource: 'Source',
+      citationSection: 'Section',
+      citationChunk: 'Chunk',
+      citationPage: 'Page',
+      citationSheet: 'Sheet',
+      citationSlide: 'Slide',
+      citationQuote: 'Quote',
+    },
+    kbManagement: {
+      pageTitle: 'Knowledge Base Management',
+      searchPlaceholder: 'Search by knowledge base name',
+      create: 'Create Knowledge Base',
+      infoTab: 'Info',
+      filesTab: 'Files',
+      chunksTab: 'Chunks',
+      reindex: 'Reindex',
+      reindexing: 'Reindexing',
+      exportMarkdown: 'Export Markdown',
+      exportDocx: 'Export DOCX',
+      exportXlsx: 'Export XLSX',
+      rename: 'Rename',
+      save: 'Save',
+      deleteKb: 'Delete KB',
+      deleteFile: 'Delete File',
+      deleteKbConfirm: 'Delete this knowledge base?',
+      deleteKbDesc: 'All files and chunks under this knowledge base will be removed permanently.',
+      deleteFileConfirm: 'Delete this file?',
+      uploaded: 'File uploaded successfully',
+      deleted: 'Deleted successfully',
+      renamed: 'Knowledge base updated',
+      reindexStarted: 'Reindex started',
+      createdAt: 'Created At',
+      updatedAt: 'Updated At',
+      storagePath: 'Storage Path',
+      storageSize: 'Storage Size',
+      tokenCount: 'Total Tokens',
+      chunkPreview: 'Preview',
+      chunkIndex: 'Chunk',
+      fileName: 'File Name',
+      filterAllFiles: 'All Files',
+      parseStatus: 'Parse',
+      ocrStatus: 'OCR',
+      statusReady: 'Ready',
+      statusOther: 'Processing',
     },
     status: {
       loading: 'Loading...',

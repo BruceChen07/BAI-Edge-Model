@@ -22,6 +22,8 @@ class KnowledgeBaseDTO(BaseModel):
     status: str
     file_count: int
     chunk_count: int
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 class DocumentDTO(BaseModel):
@@ -36,6 +38,8 @@ class DocumentDTO(BaseModel):
     parse_status: str
     ocr_status: str
     index_status: str
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 class ChunkDTO(BaseModel):
@@ -51,3 +55,4 @@ class ChunkDTO(BaseModel):
     heading_path: str = ""
     token_count: int
     vector_ref: str = ""
+    created_at: str | None = None

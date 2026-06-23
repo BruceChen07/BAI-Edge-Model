@@ -6,7 +6,6 @@ import {
   Col,
   Descriptions,
   Empty,
-  Form,
   Input,
   InputNumber,
   Modal,
@@ -15,10 +14,8 @@ import {
   Space,
   Tag,
   Typography,
-  Upload,
   message as antdMessage,
 } from "antd";
-import type { RcFile, UploadFile } from "antd/es/upload/interface";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { messages, type Locale } from "../i18n/messages";
@@ -39,6 +36,7 @@ import {
   trimChatHistoryMessages,
   type ChatHistoryMessage,
 } from "../utils/chatHistoryStorage";
+import { CreateKnowledgeBaseModal } from "../components/knowledgeBase/CreateKnowledgeBaseModal";
 
 const { TextArea } = Input;
 const { Paragraph, Text } = Typography;
@@ -48,6 +46,38 @@ const MarkdownRenderer = lazy(async () => ({
 }));
 
 type UiMessage = ChatHistoryMessage;
+type CitationRecord = Record<string, unknown>;
+
+function buildCitationLocator(
+  citation: CitationRecord,
+  copy: ReturnType<typeof getCopy>,
+) {
+  if (citation.page_no) {
+    return `${copy.chat.citationPage} ${String(citation.page_no)}`;
+  }
+  if (citation.sheet_name) {
+    return `${copy.chat.citationSheet} ${String(citation.sheet_name)}`;
+  }
+  if (citation.slide_no) {
+    return `${copy.chat.citationSlide} ${String(citation.slide_no)}`;
+  }
+  return `${copy.chat.citationChunk} ${String(citation.chunk_index ?? 0)}`;
+}
+
+function buildCitationSourceLabel(
+  citation: CitationRecord,
+  copy: ReturnType<typeof getCopy>,
+) {
+  const sourceLabel = String(citation.source_label ?? "").trim();
+  if (sourceLabel) {
+    return sourceLabel;
+  }
+  return `${String(citation.file_name ?? "unknown")} · ${buildCitationLocator(citation, copy)}`;
+}
+
+function getCopy(locale: Locale) {
+  return messages[locale];
+}
 
 type ChatPageProps = {
   locale: Locale;
@@ -71,10 +101,8 @@ export function ChatPage({ locale }: ChatPageProps) {
     initialHistorySnapshot.messages,
   );
   const [isCreateKbOpen, setIsCreateKbOpen] = useState(false);
-  const [kbFileList, setKbFileList] = useState<UploadFile[]>([]);
-  const [createKbForm] = Form.useForm();
   const queryClient = useQueryClient();
-  const copy = messages[locale];
+  const copy = getCopy(locale);
 
   // Resource monitoring & model recommendation state
   const [resourceWarningOpen, setResourceWarningOpen] = useState(false);
@@ -242,42 +270,6 @@ export function ChatPage({ locale }: ChatPageProps) {
     },
   });
 
-  const createKnowledgeBaseMutation = useMutation({
-    mutationFn: async (payload: {
-      name: string;
-      description?: string;
-      files: File[];
-    }) => {
-      const knowledgeBase = await api.createKnowledgeBase({
-        name: payload.name,
-        description: payload.description,
-      });
-
-      for (const file of payload.files) {
-        await api.uploadKnowledgeBaseFile({
-          kbId: knowledgeBase.id,
-          file,
-          enableOcr: true,
-        });
-      }
-      return knowledgeBase;
-    },
-    onSuccess: (knowledgeBase) => {
-      antdMessage.success(`${knowledgeBase.name} created successfully.`);
-      setSelectedKnowledgeBases((current) =>
-        Array.from(new Set([...current, knowledgeBase.id])),
-      );
-      setKbFileList([]);
-      createKbForm.resetFields();
-      setIsCreateKbOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
-      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
-    },
-    onError: (error: Error) => {
-      antdMessage.error(error.message);
-    },
-  });
-
   const handleNewSession = async () => {
     const session = await createSessionMutation.mutateAsync(
       `Chat ${new Date().toLocaleTimeString()}`,
@@ -317,24 +309,6 @@ export function ChatPage({ locale }: ChatPageProps) {
       query: currentPrompt,
       modelName: selectedModel,
       knowledgeBaseIds: selectedKnowledgeBases,
-    });
-  };
-
-  const handleCreateKnowledgeBase = async () => {
-    const values = await createKbForm.validateFields();
-    const files = kbFileList.flatMap((file) =>
-      file.originFileObj ? [file.originFileObj as RcFile] : [],
-    );
-
-    if (files.length === 0) {
-      antdMessage.warning(copy.chat.uploadFiles);
-      return;
-    }
-
-    await createKnowledgeBaseMutation.mutateAsync({
-      name: values.name,
-      description: values.description,
-      files,
     });
   };
 
@@ -441,10 +415,57 @@ export function ChatPage({ locale }: ChatPageProps) {
                           .slice(0, 3)
                           .map((citation, citationIndex) => (
                             <Card key={citationIndex} size="small">
-                              <Text>
-                                {String(citation.file_name ?? "unknown")} |
-                                score: {String(citation.score ?? "")}
-                              </Text>
+                              <Space
+                                direction="vertical"
+                                size={4}
+                                style={{ width: "100%" }}
+                              >
+                                <Text strong>
+                                  {String(citation.file_name ?? "unknown")}
+                                </Text>
+                                <Text type="secondary">
+                                  {copy.chat.citationSource}:{" "}
+                                  {buildCitationSourceLabel(
+                                    citation as CitationRecord,
+                                    copy,
+                                  )}
+                                </Text>
+                                <Space size={[6, 6]} wrap>
+                                  <Tag>
+                                    {buildCitationLocator(
+                                      citation as CitationRecord,
+                                      copy,
+                                    )}
+                                  </Tag>
+                                  <Tag color="blue">
+                                    {copy.chat.citationScore}:{" "}
+                                    {String(citation.score ?? 0)}
+                                  </Tag>
+                                  {Array.isArray(citation.matched_terms) &&
+                                  citation.matched_terms.length > 0 ? (
+                                    <Tag color="purple">
+                                      {copy.chat.citationMatchedTerms}:{" "}
+                                      {citation.matched_terms.join(", ")}
+                                    </Tag>
+                                  ) : null}
+                                  {citation.heading_path ? (
+                                    <Tag color="cyan">
+                                      {copy.chat.citationSection}:{" "}
+                                      {String(citation.heading_path)}
+                                    </Tag>
+                                  ) : null}
+                                </Space>
+                                <Text type="secondary">
+                                  {copy.chat.citationQuote}
+                                </Text>
+                                <Text style={{ whiteSpace: "pre-wrap" }}>
+                                  {String(
+                                    citation.quote_excerpt ??
+                                      citation.quote_text ??
+                                      "",
+                                  )}
+                                </Text>
+                              </Space>
                             </Card>
                           ))}
                       </Space>
@@ -485,59 +506,16 @@ export function ChatPage({ locale }: ChatPageProps) {
         </Space>
       </Card>
 
-      <Modal
-        title={copy.chat.createKnowledgeBaseTitle}
+      <CreateKnowledgeBaseModal
+        locale={locale}
         open={isCreateKbOpen}
-        onCancel={() => {
-          setIsCreateKbOpen(false);
-          setKbFileList([]);
-          createKbForm.resetFields();
+        onClose={() => setIsCreateKbOpen(false)}
+        onCreated={(kbId) => {
+          setSelectedKnowledgeBases((current) =>
+            Array.from(new Set([...current, kbId])),
+          );
         }}
-        onOk={() => void handleCreateKnowledgeBase()}
-        okText={copy.chat.submitKnowledgeBase}
-        confirmLoading={createKnowledgeBaseMutation.isPending}
-        destroyOnHidden
-      >
-        <Form layout="vertical" form={createKbForm}>
-          <Form.Item
-            label={copy.chat.knowledgeBaseName}
-            name="name"
-            rules={[{ required: true, message: copy.chat.knowledgeBaseName }]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            label={copy.chat.knowledgeBaseDescription}
-            name="description"
-          >
-            <Input.TextArea rows={3} />
-          </Form.Item>
-          <Form.Item label={copy.chat.uploadFiles}>
-            <Upload
-              multiple
-              fileList={kbFileList}
-              accept=".pdf,.doc,.docx"
-              beforeUpload={(file) => {
-                setKbFileList((current) => [...current, file]);
-                return false;
-              }}
-              onRemove={(file) => {
-                setKbFileList((current) =>
-                  current.filter((item) => item.uid !== file.uid),
-                );
-              }}
-            >
-              <Button>{copy.chat.uploadFiles}</Button>
-            </Upload>
-            <Paragraph
-              type="secondary"
-              style={{ marginTop: 8, marginBottom: 0 }}
-            >
-              {copy.chat.uploadHint}
-            </Paragraph>
-          </Form.Item>
-        </Form>
-      </Modal>
+      />
 
       {/* -- Resource warning modal -- */}
       <Modal

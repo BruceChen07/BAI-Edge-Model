@@ -117,6 +117,13 @@ def test_knowledge_base_chat_export_flow(monkeypatch) -> None:
     assert "mocked ollama reply from qwen3.5:4b" in chat_response.json()[
         "data"]["answer"]
     assert chat_response.json()["data"]["model_used"] == "qwen3.5:4b"
+    citations = chat_response.json()["data"]["citations"]
+    assert citations
+    assert citations[0]["file_name"] == "demo.txt"
+    assert "source_label" in citations[0]
+    assert citations[0]["chunk_index"] >= 0
+    assert "quote_excerpt" in citations[0]
+    assert citations[0]["matched_terms"]
 
     export_response = client.post(
         "/api/v1/exports/markdown",
@@ -195,7 +202,9 @@ def test_docx_xlsx_ingest_and_delete() -> None:
 
     chunks_response = client.get(f"/api/v1/knowledge-bases/{kb_id}/chunks")
     assert chunks_response.status_code == 200
-    chunk_texts = [item["content"] for item in chunks_response.json()["data"]]
+    chunk_page = chunks_response.json()["data"]
+    assert "items" in chunk_page
+    chunk_texts = [item["content"] for item in chunk_page["items"]]
     assert any(
         "Edge deployment with local rag memory." in text for text in chunk_texts)
     assert any("Local retrieval" in text for text in chunk_texts)
@@ -207,6 +216,61 @@ def test_docx_xlsx_ingest_and_delete() -> None:
     assert files_response.status_code == 200
     remaining_ids = [item["id"] for item in files_response.json()["data"]]
     assert docx_id not in remaining_ids
+
+
+def test_knowledge_base_reindex_stats_and_chunk_pagination() -> None:
+    kb_response = client.post(
+        "/api/v1/knowledge-bases",
+        json={"name": "Reindex KB", "description": "reindex"},
+    )
+    assert kb_response.status_code == 200
+    kb_id = kb_response.json()["data"]["id"]
+
+    upload_response = client.post(
+        f"/api/v1/knowledge-bases/{kb_id}/files/upload?enable_ocr=true",
+        files={
+            "file": (
+                "reindex.txt",
+                io.BytesIO(
+                    b"alpha beta gamma delta epsilon zeta eta theta iota"),
+                "text/plain",
+            )
+        },
+    )
+    assert upload_response.status_code == 200
+    document_id = upload_response.json()["data"]["document"]["id"]
+
+    reindex_response = client.post(f"/api/v1/knowledge-bases/{kb_id}/reindex")
+    assert reindex_response.status_code == 200
+    task_id = reindex_response.json()["data"]["id"]
+
+    for _ in range(40):
+        task_response = client.get(f"/api/v1/tasks/{task_id}")
+        assert task_response.status_code == 200
+        task_payload = task_response.json()["data"]
+        if task_payload["status"] == "done":
+            break
+    else:
+        raise AssertionError("reindex task did not finish in time")
+
+    stats_response = client.get(f"/api/v1/knowledge-bases/{kb_id}/stats")
+    assert stats_response.status_code == 200
+    stats = stats_response.json()["data"]
+    assert stats["file_count"] == 1
+    assert stats["chunk_count"] >= 1
+    assert stats["token_count"] >= 1
+
+    chunks_response = client.get(
+        f"/api/v1/knowledge-bases/{kb_id}/chunks",
+        params={"document_id": document_id, "offset": 0, "limit": 1},
+    )
+    assert chunks_response.status_code == 200
+    payload = chunks_response.json()["data"]
+    assert payload["limit"] == 1
+    assert payload["offset"] == 0
+    assert payload["total"] >= 1
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["document_id"] == document_id
 
 
 def test_ollama_timeout_logs_are_queryable(monkeypatch) -> None:

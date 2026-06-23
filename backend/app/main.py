@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import json
+import threading
 import time
 from uuid import uuid4
 
@@ -597,13 +598,36 @@ def delete_file(kb_id: str, file_id: str) -> ApiResponse[dict]:
 
 @app.post("/api/v1/knowledge-bases/{kb_id}/reindex")
 def reindex_knowledge_base(kb_id: str) -> ApiResponse[dict]:
-    task = task_service.create("reindex", kb_id, status="done", progress=1.0)
-    return ApiResponse(data=task.model_dump())
+    task = kb_service.start_reindex(kb_id)
+    worker = threading.Thread(
+        target=kb_service.reindex,
+        args=(kb_id, task["id"]),
+        daemon=True,
+    )
+    worker.start()
+    return ApiResponse(data=task)
 
 
 @app.get("/api/v1/knowledge-bases/{kb_id}/chunks")
-def list_chunks(kb_id: str) -> ApiResponse[list[dict]]:
-    return ApiResponse(data=[item.model_dump() for item in kb_service.list_chunks(kb_id)])
+def list_chunks(
+    kb_id: str,
+    document_id: str | None = Query(default=None),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> ApiResponse[dict]:
+    return ApiResponse(
+        data=kb_service.list_chunks(
+            kb_id,
+            document_id=document_id,
+            offset=offset,
+            limit=limit,
+        )
+    )
+
+
+@app.get("/api/v1/knowledge-bases/{kb_id}/stats")
+def get_knowledge_base_stats(kb_id: str) -> ApiResponse[dict]:
+    return ApiResponse(data=kb_service.get_stats(kb_id))
 
 
 @app.get("/api/v1/tasks")
