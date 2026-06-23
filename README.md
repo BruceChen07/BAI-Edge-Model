@@ -78,10 +78,20 @@ A local-first edge LLM platform with RAG (Retrieval-Augmented Generation), Agent
 - Visual warning modal in UI with one-click model downgrade
 - Auto-downloads the best-fit model on first startup
 
-###  Memory & Context
-- Persistent long-term memory with CRUD API
-- Automatic memory extraction from conversations
-- Memory injection into chat context
+###  Memory & Context (Long-Short Term Memory System)
+- **Short-term cache**: Thread-safe LRU + TTL cache (< 0.1ms read latency)
+- **Long-term storage**: FTS5 + Jaccard 2-stage semantic retrieval
+- **Auto-extraction**: LLM-powered (qwen3:0.6B) memory extraction from conversations, with rule-based fallback
+- **Compression**: Hash dedup + Jaccard merge + importance-based archival (≥60% redundancy removal)
+- **Encryption**: AES-256-GCM field-level encryption with PBKDF2 key derivation (local-only keys)
+- **Context injection**: Automatic memory injection into chat prompts via `MemoryOrchestrator`
+
+###  Hardware-Aware Model Intelligence
+- **llmfit integration**: Hardware detection via llmfit CLI, with graceful fallback to psutil + curated catalog when llmfit not installed
+- **Model catalog**: Persistent SQLite catalog with Q/S/F/C four-dimensional scoring, hardware requirements, and multi-field filter/search
+- **Scoring UI**: Frontend `ModelCatalogPage` with score bars, detail modal, and sync controls
+- **Auto-download**: First-startup model provisioning with multi-source fallback (Ollama → HuggingFace → ModelScope)
+- **Download resumption**: SQLite-tracked chunked download with pause/resume and SSE progress streaming
 
 ###  Export
 - Export chat sessions to Markdown, DOCX, or XLSX
@@ -229,6 +239,32 @@ Users can override via the **Timeout Settings** button in the UI or the `PUT /ap
 | GET | `/api/v1/system/timeout-info` | Resolved timeout tier for a model |
 | PUT | `/api/v1/system/timeout-override` | Set manual timeout override |
 | GET | `/api/v1/models` | List locally available Ollama models |
+
+### LLMFIT Intelligence
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/llmfit/system` | Hardware profile from llmfit (with fallback) |
+| GET | `/api/v1/llmfit/recommend` | Scored model recommendations |
+| GET | `/api/v1/llmfit/models/{name}` | Single model hardware-fit info |
+| POST | `/api/v1/llmfit/cache/refresh` | Clear llmfit in-memory cache |
+
+### Model Catalog
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/catalog` | List catalog with filters (provider, size, fit, score, use_case) |
+| GET | `/api/v1/catalog/search` | Full-text search across name, provider, description, tags |
+| GET | `/api/v1/catalog/{name}` | Single model catalog detail |
+| POST | `/api/v1/catalog/sync` | Trigger sync from curated catalog or llmfit |
+
+### Download (Phase 3)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/download/pull` | Pull model with multi-source fallback |
+| GET | `/api/v1/download/plan/{model}` | Get resolved download source plan |
+| GET | `/api/v1/download/progress/{model}` | SSE real-time download progress |
+| GET | `/api/v1/download/jobs` | List download jobs (filter by status) |
+| GET | `/api/v1/download/jobs/{id}` | Single download job detail |
+| POST | `/api/v1/download/jobs/{id}/pause` | Pause an active download |
 
 ### Chat & Sessions
 | Method | Path | Description |
