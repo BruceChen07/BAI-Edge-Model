@@ -4,7 +4,6 @@ import json
 import os
 import time
 import traceback
-import urllib.request
 from typing import Any
 
 import httpx
@@ -55,23 +54,11 @@ class OllamaService:
     def list_models(self) -> list[dict[str, Any]]:
         started_at = time.time()
         try:
-            # #region debug-point A:list-models-request
-            exec(
-                "try:\n _p='.dbg/ollama-timeout.env'; _u='http://127.0.0.1:7777/event'; _s='ollama-timeout';\n with open(_p, encoding='utf-8') as _f: _c=_f.read(); _u=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SERVER_URL=')),_u); _s=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SESSION_ID=')),_s)\nexcept: pass\nurllib.request.urlopen(urllib.request.Request(_u, data=json.dumps({'sessionId':_s,'runId':'pre-fix','hypothesisId':'A','location':'ollama_service.py:list_models:request','msg':'[DEBUG] issuing ollama model list request','data':{'base_url':self.base_url,'timeout_seconds':config.ollama_list_timeout_seconds},'ts':int(time.time()*1000)}).encode(), headers={'Content-Type':'application/json'}), timeout=2).read()")
-            # #endregion
             with httpx.Client(timeout=config.ollama_list_timeout_seconds) as client:
                 response = client.get(f"{self.base_url}/api/tags")
                 response.raise_for_status()
                 payload = response.json()
-            # #region debug-point A:list-models-response
-            exec(
-                "try:\n _p='.dbg/ollama-timeout.env'; _u='http://127.0.0.1:7777/event'; _s='ollama-timeout';\n with open(_p, encoding='utf-8') as _f: _c=_f.read(); _u=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SERVER_URL=')),_u); _s=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SESSION_ID=')),_s)\nexcept: pass\nurllib.request.urlopen(urllib.request.Request(_u, data=json.dumps({'sessionId':_s,'runId':'pre-fix','hypothesisId':'A','location':'ollama_service.py:list_models:response','msg':'[DEBUG] ollama model list request completed','data':{'base_url':self.base_url,'status_code':response.status_code,'model_count':len(payload.get('models', []))},'ts':int(time.time()*1000)}).encode(), headers={'Content-Type':'application/json'}), timeout=2).read()")
-            # #endregion
         except httpx.HTTPError:
-            # #region debug-point A:list-models-error
-            exec(
-                "try:\n _p='.dbg/ollama-timeout.env'; _u='http://127.0.0.1:7777/event'; _s='ollama-timeout';\n with open(_p, encoding='utf-8') as _f: _c=_f.read(); _u=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SERVER_URL=')),_u); _s=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SESSION_ID=')),_s)\nexcept: pass\nurllib.request.urlopen(urllib.request.Request(_u, data=json.dumps({'sessionId':_s,'runId':'pre-fix','hypothesisId':'A','location':'ollama_service.py:list_models:error','msg':'[DEBUG] ollama model list request failed','data':{'base_url':self.base_url,'error_stack':traceback.format_exc()},'ts':int(time.time()*1000)}).encode(), headers={'Content-Type':'application/json'}), timeout=2).read()")
-            # #endregion
             log_event(
                 self.logger,
                 40,
@@ -118,10 +105,6 @@ class OllamaService:
         request_payload = {"model": model_name,
                            "messages": messages, "stream": False}
         try:
-            # #region debug-point B:chat-request
-            exec(
-                "try:\n _p='.dbg/ollama-timeout.env'; _u='http://127.0.0.1:7777/event'; _s='ollama-timeout';\n with open(_p, encoding='utf-8') as _f: _c=_f.read(); _u=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SERVER_URL=')),_u); _s=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SESSION_ID=')),_s)\nexcept: pass\nurllib.request.urlopen(urllib.request.Request(_u, data=json.dumps({'sessionId':_s,'runId':'pre-fix','hypothesisId':'B','location':'ollama_service.py:chat:request','msg':'[DEBUG] issuing ollama chat request','data':{'base_url':self.base_url,'model_name':model_name,'timeout_seconds':config.ollama_read_timeout_seconds,'message_count':len(messages),'last_user_chars':len(messages[-1]['content']) if messages else 0},'ts':int(time.time()*1000)}).encode(), headers={'Content-Type':'application/json'}), timeout=2).read()")
-            # #endregion
             tier = self._resolve_timeout_tier(model_name)
             log_event(
                 self.logger,
@@ -141,10 +124,6 @@ class OllamaService:
                     f"{self.base_url}/api/chat", json=request_payload)
                 response.raise_for_status()
                 payload = response.json()
-            # #region debug-point B:chat-response
-            exec(
-                "try:\n _p='.dbg/ollama-timeout.env'; _u='http://127.0.0.1:7777/event'; _s='ollama-timeout';\n with open(_p, encoding='utf-8') as _f: _c=_f.read(); _u=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SERVER_URL=')),_u); _s=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SESSION_ID=')),_s)\nexcept: pass\nurllib.request.urlopen(urllib.request.Request(_u, data=json.dumps({'sessionId':_s,'runId':'pre-fix','hypothesisId':'B','location':'ollama_service.py:chat:response','msg':'[DEBUG] ollama chat request completed','data':{'base_url':self.base_url,'model_name':model_name,'status_code':response.status_code,'elapsed_ms':round((time.time()-started_at)*1000,2),'response_chars':len(payload.get('message', {}).get('content', ''))},'ts':int(time.time()*1000)}).encode(), headers={'Content-Type':'application/json'}), timeout=2).read()")
-            # #endregion
             log_event(
                 self.logger,
                 20,
@@ -160,10 +139,6 @@ class OllamaService:
                     "message", {}).get("content", "")),
             )
         except Exception:
-            # #region debug-point D:chat-error
-            exec(
-                "try:\n _p='.dbg/ollama-timeout.env'; _u='http://127.0.0.1:7777/event'; _s='ollama-timeout';\n with open(_p, encoding='utf-8') as _f: _c=_f.read(); _u=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SERVER_URL=')),_u); _s=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SESSION_ID=')),_s)\nexcept: pass\nurllib.request.urlopen(urllib.request.Request(_u, data=json.dumps({'sessionId':_s,'runId':'pre-fix','hypothesisId':'D','location':'ollama_service.py:chat:error','msg':'[DEBUG] ollama chat request failed','data':{'base_url':self.base_url,'model_name':model_name,'timeout_seconds':config.ollama_read_timeout_seconds,'elapsed_ms':round((time.time()-started_at)*1000,2),'message_count':len(messages),'error_stack':traceback.format_exc()},'ts':int(time.time()*1000)}).encode(), headers={'Content-Type':'application/json'}), timeout=2).read()")
-            # #endregion
             tier = self._resolve_timeout_tier(model_name)
             log_event(
                 self.logger,
