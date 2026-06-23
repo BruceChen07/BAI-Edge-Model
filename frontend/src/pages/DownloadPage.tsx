@@ -21,6 +21,7 @@ import {
   type DownloadJob,
   type DownloadProgressEvent,
 } from "../services/api";
+import { messages, type Locale } from "../i18n/messages";
 
 const { Text, Title } = Typography;
 
@@ -32,7 +33,8 @@ const STATUS_COLORS: Record<string, string> = {
   failed: "error",
 };
 
-export function DownloadPage() {
+export function DownloadPage({ locale }: { locale: Locale }) {
+  const copy = messages[locale].downloads;
   const queryClient = useQueryClient();
   const [modelName, setModelName] = useState("qwen3:8b");
   const [source, setSource] = useState("auto");
@@ -56,12 +58,12 @@ export function DownloadPage() {
     mutationFn: () =>
       api.pullModelMultiSource({ model_name: modelName, source }),
     onSuccess: (data) => {
-      message.success(`Download started via ${data.source ?? "auto"}`);
+      message.success(`${copy.downloadStarted} ${data.source ?? copy.auto}`);
       setActiveModel(modelName);
       queryClient.invalidateQueries({ queryKey: ["download-jobs"] });
     },
     onError: (err: Error) => {
-      message.error(err.message || "Failed to start download");
+      message.error(err.message || copy.downloadStartFailed);
     },
   });
 
@@ -105,28 +107,28 @@ export function DownloadPage() {
   const pauseMutation = useMutation({
     mutationFn: (jobId: string) => api.pauseDownloadJob(jobId),
     onSuccess: () => {
-      message.success("Download paused");
+      message.success(copy.downloadPaused);
       queryClient.invalidateQueries({ queryKey: ["download-jobs"] });
     },
     onError: (err: Error) => {
-      message.error(err.message || "Failed to pause");
+      message.error(err.message || copy.pauseFailed);
     },
   });
 
   const columns = [
     {
-      title: "Model",
+      title: copy.model,
       dataIndex: "model_name",
       key: "model_name",
     },
     {
-      title: "Source",
+      title: copy.source,
       dataIndex: "source_name",
       key: "source_name",
-      render: (value: string) => <Tag>{value || "n/a"}</Tag>,
+      render: (value: string) => <Tag>{value || copy.na}</Tag>,
     },
     {
-      title: "Status",
+      title: copy.status,
       dataIndex: "status",
       key: "status",
       render: (value: string) => (
@@ -134,7 +136,7 @@ export function DownloadPage() {
       ),
     },
     {
-      title: "Progress",
+      title: copy.progress,
       key: "progress",
       render: (_: unknown, row: DownloadJob) => {
         const percent =
@@ -145,7 +147,7 @@ export function DownloadPage() {
       },
     },
     {
-      title: "Action",
+      title: copy.action,
       key: "action",
       render: (_: unknown, row: DownloadJob) => (
         <Button
@@ -153,7 +155,7 @@ export function DownloadPage() {
           disabled={row.status !== "downloading"}
           onClick={() => pauseMutation.mutate(row.id)}
         >
-          Pause
+          {copy.pause}
         </Button>
       ),
     },
@@ -164,14 +166,14 @@ export function DownloadPage() {
       <Card>
         <Space direction="vertical" style={{ width: "100%" }} size="middle">
           <Title level={4} style={{ margin: 0 }}>
-            Download Center
+            {copy.pageTitle}
           </Title>
           <Row gutter={[16, 16]}>
             <Col xs={24} md={10}>
               <Input
                 value={modelName}
                 onChange={(e) => setModelName(e.target.value)}
-                placeholder="Model name, e.g. qwen3:8b"
+                placeholder={copy.modelPlaceholder}
               />
             </Col>
             <Col xs={24} md={6}>
@@ -180,10 +182,10 @@ export function DownloadPage() {
                 onChange={setSource}
                 style={{ width: "100%" }}
                 options={[
-                  { label: "Auto", value: "auto" },
-                  { label: "Ollama", value: "ollama" },
-                  { label: "HuggingFace", value: "huggingface" },
-                  { label: "ModelScope", value: "modelscope" },
+                  { label: copy.auto, value: "auto" },
+                  { label: copy.ollama, value: "ollama" },
+                  { label: copy.huggingFace, value: "huggingface" },
+                  { label: copy.modelScope, value: "modelscope" },
                 ]}
               />
             </Col>
@@ -194,10 +196,10 @@ export function DownloadPage() {
                   loading={pullMutation.isPending}
                   onClick={() => pullMutation.mutate()}
                 >
-                  Start Download
+                  {copy.startDownload}
                 </Button>
                 <Button onClick={() => jobsQuery.refetch()}>
-                  Refresh Jobs
+                  {copy.refreshJobs}
                 </Button>
               </Space>
             </Col>
@@ -207,7 +209,7 @@ export function DownloadPage() {
             <Alert
               type="info"
               showIcon
-              message={`Resolved plan for ${planQuery.data.model_name}`}
+              message={`${copy.resolvedPlan} ${planQuery.data.model_name}`}
               description={
                 <Space wrap>
                   {planQuery.data.sources.map((item) => (
@@ -222,57 +224,57 @@ export function DownloadPage() {
         </Space>
       </Card>
 
-      <Card title="Live Progress">
+      <Card title={copy.liveProgress}>
         {progress ? (
           <Space direction="vertical" style={{ width: "100%" }}>
             <Text>
-              <strong>Model:</strong> {progress.model_name}
+              <strong>{copy.model}:</strong> {progress.model_name}
             </Text>
             <Text>
-              <strong>Source:</strong> {progress.source_name || "n/a"}
+              <strong>{copy.source}:</strong> {progress.source_name || copy.na}
             </Text>
             <Progress
               percent={Math.round(progress.percent)}
               status={progress.status === "failed" ? "exception" : undefined}
             />
             <Text>
-              <strong>Speed:</strong> {progress.speed_mbps} MB/s
+              <strong>{copy.speed}:</strong> {progress.speed_mbps} MB/s
             </Text>
             <Text>
-              <strong>ETA:</strong> {progress.eta_seconds}s
+              <strong>{copy.eta}:</strong> {progress.eta_seconds}s
             </Text>
             {progress.error ? (
               <Alert type="error" showIcon message={progress.error} />
             ) : null}
           </Space>
         ) : (
-          <Text type="secondary">No active progress stream</Text>
+          <Text type="secondary">{copy.noActiveProgress}</Text>
         )}
       </Card>
 
-      <Card title="Latest Job">
+      <Card title={copy.latestJob}>
         {latestJob ? (
           <Space direction="vertical" style={{ width: "100%" }}>
             <Text>
               <strong>ID:</strong> {latestJob.id}
             </Text>
             <Text>
-              <strong>Status:</strong> {latestJob.status}
+              <strong>{copy.status}:</strong> {latestJob.status}
             </Text>
             <Text>
-              <strong>Output:</strong> {latestJob.output_path}
+              <strong>{copy.output}:</strong> {latestJob.output_path}
             </Text>
             <Text>
-              <strong>Retries:</strong> {latestJob.retry_count}/
+              <strong>{copy.retries}:</strong> {latestJob.retry_count}/
               {latestJob.max_retries}
             </Text>
           </Space>
         ) : (
-          <Text type="secondary">No jobs yet</Text>
+          <Text type="secondary">{copy.noJobsYet}</Text>
         )}
       </Card>
 
-      <Card title="Download Jobs">
+      <Card title={copy.downloadJobs}>
         <Table<DownloadJob>
           rowKey="id"
           dataSource={jobsQuery.data?.items ?? []}

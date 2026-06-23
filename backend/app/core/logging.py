@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -60,7 +61,7 @@ def setup_logging() -> None:
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(formatter)
 
-    console_handler = logging.StreamHandler()
+    console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
     console_handler.setFormatter(formatter)
 

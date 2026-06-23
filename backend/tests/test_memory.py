@@ -304,8 +304,9 @@ class TestMemoryOrchestrator:
         ]
         created = orch.auto_extract_from_messages("sess_01", messages)
         assert len(created) > 0
-        titles = [m.title for m in created]
-        assert any("我是" in t for t in titles)
+        extracted_text = " ".join(f"{m.title} {m.content}" for m in created)
+        assert any(keyword in extracted_text for keyword in [
+                   "张三", "北京", "蓝色", "游泳"])
 
     def test_auto_extract_short_skipped(self):
         orch = MemoryOrchestrator()
@@ -561,8 +562,33 @@ class TestPhase2Compression:
                 raise RuntimeError("connection refused")
 
         extractor = SemanticExtractor(ollama_service=FailingOllama())
-        items = extractor.extract([{"role": "user", "content": "test data " * 20}])
+        items = extractor.extract(
+            [{"role": "user", "content": "test data " * 20}])
         assert items == []
+
+    def test_semantic_extractor_falls_back_to_installed_small_model(self):
+        from app.services.semantic_extractor import SemanticExtractor
+
+        class MockOllama:
+            def list_models(self):
+                return [
+                    {"name": "qwen3:1.7b"},
+                    {"name": "qwen3.5:4b"},
+                ]
+
+            def chat(self, *, model_name, messages):
+                assert model_name == "qwen3:1.7b"
+                return '[{"memory_type":"fact","title":"Test","content":"fallback model used","importance":0.8,"confidence":0.9}]'
+
+        extractor = SemanticExtractor(
+            ollama_service=MockOllama(),
+            model_name="qwen3:0.6b",
+        )
+        items = extractor.extract([
+            {"role": "user", "content": "I work on local edge AI systems and debugging workflows " * 3},
+        ])
+        assert len(items) == 1
+        assert items[0]["content"] == "fallback model used"
 
 
 # ============================================================================

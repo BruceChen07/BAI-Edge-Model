@@ -3,8 +3,6 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 import json
 import time
-import traceback
-import urllib.request
 from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
@@ -667,15 +665,35 @@ def delete_session(session_id: str) -> ApiResponse[dict]:
 @app.post("/api/v1/chat/completions")
 def chat_completions(payload: ChatRequestDTO) -> ApiResponse[dict]:
     # #region debug-point C:chat-completions-entry
-    exec(
-        "try:\n _p='.dbg/ollama-timeout.env'; _u='http://127.0.0.1:7777/event'; _s='ollama-timeout';\n with open(_p, encoding='utf-8') as _f: _c=_f.read(); _u=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SERVER_URL=')),_u); _s=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SESSION_ID=')),_s)\nexcept: pass\nurllib.request.urlopen(urllib.request.Request(_u, data=json.dumps({'sessionId':_s,'runId':'pre-fix','hypothesisId':'C','location':'main.py:chat_completions:entry','msg':'[DEBUG] chat completion request received','data':{'session_id':payload.session_id,'model_name':payload.model_name,'query_chars':len(payload.query),'kb_count':len(payload.knowledge_base_ids),'top_k':payload.top_k},'ts':int(time.time()*1000),'traceId':payload.session_id}).encode(), headers={'Content-Type':'application/json'}), timeout=2).read()")
+    log_event(
+        logger,
+        20,
+        "chat.completions.received",
+        "Chat completion request received",
+        module_name="chat",
+        trace_id=get_trace_id() if get_trace_id() != "-" else payload.session_id,
+        session_id=payload.session_id,
+        model_name=payload.model_name,
+        query_chars=len(payload.query),
+        knowledge_base_count=len(payload.knowledge_base_ids),
+        top_k=payload.top_k,
+    )
     # #endregion
     try:
         return ApiResponse(data=chat_service.answer(payload).model_dump())
     except RuntimeError as exc:
         # #region debug-point D:chat-completions-runtime-error
-        exec(
-            "try:\n _p='.dbg/ollama-timeout.env'; _u='http://127.0.0.1:7777/event'; _s='ollama-timeout';\n with open(_p, encoding='utf-8') as _f: _c=_f.read(); _u=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SERVER_URL=')),_u); _s=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SESSION_ID=')),_s)\nexcept: pass\nurllib.request.urlopen(urllib.request.Request(_u, data=json.dumps({'sessionId':_s,'runId':'pre-fix','hypothesisId':'D','location':'main.py:chat_completions:runtime_error','msg':'[DEBUG] chat completion raised runtime error','data':{'session_id':payload.session_id,'model_name':payload.model_name,'error':str(exc),'error_stack':traceback.format_exc()},'ts':int(time.time()*1000),'traceId':payload.session_id}).encode(), headers={'Content-Type':'application/json'}), timeout=2).read()")
+        log_event(
+            logger,
+            30,
+            "chat.completions.runtime_error_debug",
+            "Chat completion raised runtime error",
+            module_name="chat",
+            trace_id=get_trace_id() if get_trace_id() != "-" else payload.session_id,
+            session_id=payload.session_id,
+            model_name=payload.model_name,
+            error=str(exc),
+        )
         # #endregion
         trace_id = get_trace_id()
         if trace_id == "-" and payload.session_id:
@@ -694,8 +712,17 @@ def chat_completions(payload: ChatRequestDTO) -> ApiResponse[dict]:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         # #region debug-point D:chat-completions-exception
-        exec(
-            "try:\n _p='.dbg/ollama-timeout.env'; _u='http://127.0.0.1:7777/event'; _s='ollama-timeout';\n with open(_p, encoding='utf-8') as _f: _c=_f.read(); _u=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SERVER_URL=')),_u); _s=next((l.split('=',1)[1] for l in _c.split('\\n') if l.startswith('DEBUG_SESSION_ID=')),_s)\nexcept: pass\nurllib.request.urlopen(urllib.request.Request(_u, data=json.dumps({'sessionId':_s,'runId':'pre-fix','hypothesisId':'D','location':'main.py:chat_completions:exception','msg':'[DEBUG] chat completion raised unexpected exception','data':{'session_id':payload.session_id,'model_name':payload.model_name,'error':str(exc),'error_stack':traceback.format_exc()},'ts':int(time.time()*1000),'traceId':payload.session_id}).encode(), headers={'Content-Type':'application/json'}), timeout=2).read()")
+        log_event(
+            logger,
+            40,
+            "chat.completions.exception_debug",
+            "Chat completion raised unexpected exception",
+            module_name="chat",
+            trace_id=get_trace_id() if get_trace_id() != "-" else payload.session_id,
+            session_id=payload.session_id,
+            model_name=payload.model_name,
+            error=str(exc),
+        )
         # #endregion
         trace_id = get_trace_id()
         if trace_id == "-" and payload.session_id:

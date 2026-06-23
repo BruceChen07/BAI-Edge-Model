@@ -24,6 +24,7 @@ import {
 import { useQuery } from "@tanstack/react-query"
 
 import { api, type CatalogEntry } from "../services/api"
+import { messages, type Locale } from "../i18n/messages"
 
 const { Text, Title } = Typography
 
@@ -62,18 +63,21 @@ function ModelDetailModal({
   entry,
   open,
   onClose,
+  locale,
 }: {
   entry: CatalogEntry | null
   open: boolean
   onClose: () => void
+  locale: Locale
 }) {
   if (!entry) return null
+  const copy = messages[locale].catalog
 
   const scores = [
-    { label: "Quality", value: entry.score_quality },
-    { label: "Speed", value: entry.score_speed },
-    { label: "Fit", value: entry.score_fit },
-    { label: "Context", value: entry.score_context },
+    { label: copy.quality, value: entry.score_quality },
+    { label: copy.speed, value: entry.score_speed },
+    { label: copy.fit, value: entry.score_fit },
+    { label: copy.contextScore, value: entry.score_context },
   ]
 
   return (
@@ -94,49 +98,49 @@ function ModelDetailModal({
       width={640}
     >
       <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
-        <Descriptions.Item label="Provider">{entry.provider}</Descriptions.Item>
-        <Descriptions.Item label="Param Size">{entry.param_size}</Descriptions.Item>
-        <Descriptions.Item label="Run Mode">
+        <Descriptions.Item label={copy.provider}>{entry.provider}</Descriptions.Item>
+        <Descriptions.Item label={copy.paramSize}>{entry.param_size}</Descriptions.Item>
+        <Descriptions.Item label={copy.runMode}>
           <Tag color={MODE_COLORS[entry.run_mode] ?? "#d9d9d9"}>
             {entry.run_mode}
           </Tag>
         </Descriptions.Item>
-        <Descriptions.Item label="Quantization">
+        <Descriptions.Item label={copy.quantization}>
           {entry.quantization}
         </Descriptions.Item>
-        <Descriptions.Item label="Memory Required">
+        <Descriptions.Item label={copy.memoryRequired}>
           {entry.memory_required_gb} GB
         </Descriptions.Item>
-        <Descriptions.Item label="VRAM Required">
-          {entry.vram_required_gb > 0 ? `${entry.vram_required_gb} GB` : "N/A"}
+        <Descriptions.Item label={copy.vramRequired}>
+          {entry.vram_required_gb > 0 ? `${entry.vram_required_gb} GB` : copy.notAvailable}
         </Descriptions.Item>
-        <Descriptions.Item label="Est. TPS">
+        <Descriptions.Item label={copy.estTps}>
           {entry.estimated_tps}
         </Descriptions.Item>
-        <Descriptions.Item label="Max Context">
+        <Descriptions.Item label={copy.maxContext}>
           {(entry.max_context / 1024).toFixed(0)}K
         </Descriptions.Item>
-        <Descriptions.Item label="Use Case">{entry.use_case}</Descriptions.Item>
-        <Descriptions.Item label="MoE">
-          {entry.is_moe ? <Tag color="purple">Yes</Tag> : "No"}
+        <Descriptions.Item label={copy.useCase}>{entry.use_case}</Descriptions.Item>
+        <Descriptions.Item label={copy.moe}>
+          {entry.is_moe ? <Tag color="purple">{copy.yes}</Tag> : copy.no}
         </Descriptions.Item>
-        <Descriptions.Item label="Available">
+        <Descriptions.Item label={copy.available}>
           {entry.available ? (
-            <Tag color="green">Installed</Tag>
+            <Tag color="green">{copy.installed}</Tag>
           ) : (
-            <Tag color="default">Not Installed</Tag>
+            <Tag color="default">{copy.notInstalled}</Tag>
           )}
         </Descriptions.Item>
-        <Descriptions.Item label="Source">{entry.source}</Descriptions.Item>
+        <Descriptions.Item label={copy.source}>{entry.source}</Descriptions.Item>
       </Descriptions>
 
       <Title level={5} style={{ marginTop: 0 }}>
-        Scores
+        {copy.scores}
       </Title>
       <Row gutter={[8, 8]}>
         <Col span={12}>
           <Card size="small">
-            <StatScore label="Total" value={entry.score_total} />
+            <StatScore label={copy.total} value={entry.score_total} />
           </Card>
         </Col>
         {scores.map((s) => (
@@ -150,14 +154,14 @@ function ModelDetailModal({
 
       {entry.description && (
         <>
-          <Title level={5}>Description</Title>
+          <Title level={5}>{copy.description}</Title>
           <Text>{entry.description}</Text>
         </>
       )}
 
       {entry.tags.length > 0 && (
         <>
-          <Title level={5}>Tags</Title>
+          <Title level={5}>{copy.tags}</Title>
           <Space wrap>
             {entry.tags.map((t) => (
               <Tag key={t}>{t}</Tag>
@@ -184,7 +188,8 @@ function StatScore({ label, value }: { label: string; value: number }) {
   )
 }
 
-export function ModelCatalogPage() {
+export function ModelCatalogPage({ locale }: { locale: Locale }) {
+  const copy = messages[locale].catalog
   const [searchText, setSearchText] = useState("")
   const [providerFilter, setProviderFilter] = useState<string | undefined>()
   const [fitFilter, setFitFilter] = useState<string | undefined>()
@@ -218,7 +223,7 @@ export function ModelCatalogPage() {
       message.success(res.message)
       refetch()
     } catch {
-      message.error("Sync failed")
+      message.error(copy.syncFailed)
     }
   }
 
@@ -229,7 +234,7 @@ export function ModelCatalogPage() {
 
   const columns = [
     {
-      title: "Model",
+      title: copy.model,
       dataIndex: "model_name",
       key: "model_name",
       width: 180,
@@ -243,19 +248,19 @@ export function ModelCatalogPage() {
       ),
     },
     {
-      title: "Provider",
+      title: copy.provider,
       dataIndex: "provider",
       key: "provider",
       width: 80,
     },
     {
-      title: "Size",
+      title: copy.size,
       dataIndex: "param_size",
       key: "param_size",
       width: 70,
     },
     {
-      title: "Score",
+      title: copy.score,
       dataIndex: "score_total",
       key: "score_total",
       width: 100,
@@ -271,14 +276,14 @@ export function ModelCatalogPage() {
       ),
     },
     {
-      title: "TPS",
+      title: copy.tps,
       dataIndex: "estimated_tps",
       key: "estimated_tps",
       width: 70,
       render: (v: number) => `${v}`,
     },
     {
-      title: "Mode",
+      title: copy.mode,
       dataIndex: "run_mode",
       key: "run_mode",
       width: 90,
@@ -287,21 +292,21 @@ export function ModelCatalogPage() {
       ),
     },
     {
-      title: "Memory",
+      title: copy.memory,
       dataIndex: "memory_required_gb",
       key: "memory_required_gb",
       width: 80,
       render: (v: number) => `${v} GB`,
     },
     {
-      title: "Context",
+      title: copy.context,
       dataIndex: "max_context",
       key: "max_context",
       width: 80,
       render: (v: number) => `${(v / 1024).toFixed(0)}K`,
     },
     {
-      title: "Source",
+      title: copy.source,
       dataIndex: "source",
       key: "source",
       width: 80,
@@ -328,7 +333,7 @@ export function ModelCatalogPage() {
         <Col xs={24} sm={8}>
           <Input
             prefix={<SearchOutlined />}
-            placeholder="Search models..."
+            placeholder={copy.searchPlaceholder}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             allowClear
@@ -336,7 +341,7 @@ export function ModelCatalogPage() {
         </Col>
         <Col xs={12} sm={4}>
           <Select
-            placeholder="Provider"
+            placeholder={copy.providerPlaceholder}
             value={providerFilter}
             onChange={setProviderFilter}
             allowClear
@@ -352,7 +357,7 @@ export function ModelCatalogPage() {
         </Col>
         <Col xs={12} sm={4}>
           <Select
-            placeholder="Fit Level"
+            placeholder={copy.fitPlaceholder}
             value={fitFilter}
             onChange={setFitFilter}
             allowClear
@@ -367,7 +372,7 @@ export function ModelCatalogPage() {
         </Col>
         <Col xs={12} sm={4}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Min Score: {minScore}
+            {copy.minScore}: {minScore}
           </Text>
           <Slider
             min={0}
@@ -380,16 +385,16 @@ export function ModelCatalogPage() {
         <Col xs={12} sm={4}>
           <Space>
             <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
-              Refresh
+              {copy.refresh}
             </Button>
-            <Button onClick={handleSync}>Sync Catalog</Button>
+            <Button onClick={handleSync}>{copy.syncCatalog}</Button>
           </Space>
         </Col>
       </Row>
 
       <Card size="small">
         <Text type="secondary">
-          {total ?? "—"} models in catalog
+          {total ?? "—"} {copy.modelsInCatalog}
         </Text>
       </Card>
 
@@ -407,6 +412,7 @@ export function ModelCatalogPage() {
         entry={detailEntry}
         open={modalOpen}
         onClose={() => setModalOpen(false)}
+        locale={locale}
       />
     </Space>
   )

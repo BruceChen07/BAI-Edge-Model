@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -30,29 +30,46 @@ import {
   type SessionInfo,
   type TimeoutInfo,
 } from "../services/api";
+import type { MarkdownThemeName } from "../components/markdown/markdownThemes";
+import {
+  createChatHistoryMessage,
+  loadChatHistorySnapshot,
+  normalizeChatHistorySnapshot,
+  saveChatHistorySnapshot,
+  trimChatHistoryMessages,
+  type ChatHistoryMessage,
+} from "../utils/chatHistoryStorage";
 
 const { TextArea } = Input;
 const { Paragraph, Text } = Typography;
+const MarkdownRenderer = lazy(async () => ({
+  default: (await import("../components/markdown/MarkdownRenderer"))
+    .MarkdownRenderer,
+}));
 
-type UiMessage = {
-  role: "user" | "assistant";
-  content: string;
-  modelName?: string;
-  citations?: Array<Record<string, unknown>>;
-};
+type UiMessage = ChatHistoryMessage;
 
 type ChatPageProps = {
   locale: Locale;
 };
 
 export function ChatPage({ locale }: ChatPageProps) {
-  const [selectedModel, setSelectedModel] = useState<string>();
+  const [initialHistorySnapshot] = useState(() =>
+    normalizeChatHistorySnapshot(loadChatHistorySnapshot()),
+  );
+  const [selectedModel, setSelectedModel] = useState<string | undefined>(
+    initialHistorySnapshot.selectedModel,
+  );
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<
     string[]
-  >([]);
-  const [activeSessionId, setActiveSessionId] = useState<string>();
-  const [prompt, setPrompt] = useState("");
-  const [chatMessages, setChatMessages] = useState<UiMessage[]>([]);
+  >(initialHistorySnapshot.selectedKnowledgeBases);
+  const [activeSessionId, setActiveSessionId] = useState<string | undefined>(
+    initialHistorySnapshot.activeSessionId,
+  );
+  const [prompt, setPrompt] = useState(initialHistorySnapshot.prompt);
+  const [chatMessages, setChatMessages] = useState<UiMessage[]>(
+    initialHistorySnapshot.messages,
+  );
   const [isCreateKbOpen, setIsCreateKbOpen] = useState(false);
   const [kbFileList, setKbFileList] = useState<UploadFile[]>([]);
   const [createKbForm] = Form.useForm();
@@ -68,6 +85,9 @@ export function ChatPage({ locale }: ChatPageProps) {
   const [timeoutInfo, setTimeoutInfo] = useState<TimeoutInfo | null>(null);
   const [timeoutOverride, setTimeoutOverride] = useState<number | null>(null);
   const [showTimeoutSettings, setShowTimeoutSettings] = useState(false);
+  const [markdownTheme, setMarkdownTheme] = useState<MarkdownThemeName>(
+    initialHistorySnapshot.markdownTheme,
+  );
 
   const knowledgeBases = useQuery({
     queryKey: ["knowledge-bases"],
@@ -129,6 +149,55 @@ export function ChatPage({ locale }: ChatPageProps) {
       .catch(() => {});
   }, []);
 
+  const historySnapshot = useMemo(
+    () =>
+      normalizeChatHistorySnapshot({
+        activeSessionId,
+        selectedModel,
+        selectedKnowledgeBases,
+        prompt,
+        markdownTheme,
+        messages: chatMessages,
+      }),
+    [
+      activeSessionId,
+      chatMessages,
+      markdownTheme,
+      prompt,
+      selectedKnowledgeBases,
+      selectedModel,
+    ],
+  );
+
+  useEffect(() => {
+    saveChatHistorySnapshot(historySnapshot);
+  }, [historySnapshot]);
+
+  useEffect(() => {
+    const handlePersist = () => {
+      saveChatHistorySnapshot(historySnapshot);
+    };
+
+    window.addEventListener("beforeunload", handlePersist);
+    window.addEventListener("pagehide", handlePersist);
+    return () => {
+      handlePersist();
+      window.removeEventListener("beforeunload", handlePersist);
+      window.removeEventListener("pagehide", handlePersist);
+    };
+  }, [historySnapshot]);
+
+  const appendChatMessage = (
+    message: Omit<UiMessage, "id" | "sentAt"> & {
+      id?: string;
+      sentAt?: string;
+    },
+  ) => {
+    setChatMessages((current) =>
+      trimChatHistoryMessages([...current, createChatHistoryMessage(message)]),
+    );
+  };
+
   const createSessionMutation = useMutation({
     mutationFn: (title: string) =>
       api.createSession({
@@ -156,25 +225,19 @@ export function ChatPage({ locale }: ChatPageProps) {
         knowledge_base_ids: payload.knowledgeBaseIds,
       }),
     onSuccess: (response: ChatResponse) => {
-      setChatMessages((current) => [
-        ...current,
-        {
-          role: "assistant",
-          content: response.answer,
-          modelName: response.model_used,
-          citations: response.citations,
-        },
-      ]);
+      appendChatMessage({
+        role: "assistant",
+        content: response.answer,
+        modelName: response.model_used,
+        citations: response.citations,
+      });
       void queryClient.invalidateQueries({ queryKey: ["sessions"] });
     },
     onError: (error: Error) => {
-      setChatMessages((current) => [
-        ...current,
-        {
-          role: "assistant",
-          content: error.message,
-        },
-      ]);
+      appendChatMessage({
+        role: "assistant",
+        content: error.message,
+      });
       antdMessage.error(error.message);
     },
   });
@@ -243,10 +306,11 @@ export function ChatPage({ locale }: ChatPageProps) {
 
     const currentPrompt = prompt.trim();
     setPrompt("");
-    setChatMessages((current) => [
-      ...current,
-      { role: "user", content: currentPrompt, modelName: selectedModel },
-    ]);
+    appendChatMessage({
+      role: "user",
+      content: currentPrompt,
+      modelName: selectedModel,
+    });
 
     await chatMutation.mutateAsync({
       sessionId,
@@ -279,7 +343,7 @@ export function ChatPage({ locale }: ChatPageProps) {
       <Card>
         <Space direction="vertical" style={{ width: "100%" }} size="middle">
           <Row gutter={[12, 12]}>
-            <Col xs={24} md={8}>
+            <Col xs={24} md={7}>
               <Text strong>{copy.chat.modelLabel}</Text>
               <Select
                 style={{ width: "100%", marginTop: 8 }}
@@ -293,7 +357,7 @@ export function ChatPage({ locale }: ChatPageProps) {
                 loading={models.isLoading}
               />
             </Col>
-            <Col xs={24} md={9}>
+            <Col xs={24} md={7}>
               <Text strong>{copy.chat.kbLabel}</Text>
               <Select
                 mode="multiple"
@@ -314,6 +378,19 @@ export function ChatPage({ locale }: ChatPageProps) {
                 <Tag color="blue">{selectedModel ?? copy.status.empty}</Tag>
               </div>
             </Col>
+            <Col xs={24} md={3}>
+              <Text strong>{copy.chat.themeLabel}</Text>
+              <Select
+                style={{ width: "100%", marginTop: 8 }}
+                value={markdownTheme}
+                options={[
+                  { label: copy.chat.themeLight, value: "light" },
+                  { label: copy.chat.themeDark, value: "dark" },
+                  { label: copy.chat.themeEyeCare, value: "eyeCare" },
+                ]}
+                onChange={(value) => setMarkdownTheme(value)}
+              />
+            </Col>
             <Col xs={24} md={4}>
               <Text strong>&nbsp;</Text>
               <div style={{ marginTop: 8 }}>
@@ -329,9 +406,9 @@ export function ChatPage({ locale }: ChatPageProps) {
               {chatMessages.length === 0 ? (
                 <Empty description={copy.status.empty} />
               ) : (
-                chatMessages.map((item, index) => (
+                chatMessages.map((item) => (
                   <div
-                    key={`${item.role}-${index}`}
+                    key={item.id}
                     className={`chat-message chat-message-${item.role}`}
                   >
                     <Text strong>
@@ -340,9 +417,19 @@ export function ChatPage({ locale }: ChatPageProps) {
                     {item.modelName ? (
                       <Tag style={{ marginLeft: 8 }}>{item.modelName}</Tag>
                     ) : null}
-                    <Paragraph style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>
-                      {item.content}
-                    </Paragraph>
+                    <div style={{ marginTop: 8 }}>
+                      <Suspense
+                        fallback={<Text type="secondary">Rendering...</Text>}
+                      >
+                        <MarkdownRenderer
+                          content={item.content}
+                          themeName={markdownTheme}
+                          className="markdown-chat-content"
+                          height={320}
+                          streaming={chatMutation.isPending}
+                        />
+                      </Suspense>
+                    </div>
                     {item.citations && item.citations.length > 0 ? (
                       <Space
                         direction="vertical"

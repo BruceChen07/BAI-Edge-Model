@@ -12,6 +12,7 @@ from openpyxl import Workbook
 from app.core.database import init_db
 from app.core.config import config
 from app.core.logging import setup_logging
+from app.schemas.chat import ChatResponseDTO
 from app.main import app, chat_service
 
 test_db_path = config.project_root / "storage" / "test_bai_edge_model.db"
@@ -128,6 +129,35 @@ def test_knowledge_base_chat_export_flow(monkeypatch) -> None:
     assert export_response.status_code == 200
     export_path = Path(export_response.json()["data"]["file_path"])
     assert export_path.exists()
+
+
+def test_chat_completions_no_longer_depends_on_debug_server(monkeypatch) -> None:
+    session_response = client.post(
+        "/api/v1/sessions", json={"title": "Debug Hook Regression"})
+    assert session_response.status_code == 200
+    session_id = session_response.json()["data"]["id"]
+
+    monkeypatch.setattr(
+        chat_service,
+        "answer",
+        lambda payload: ChatResponseDTO(
+            answer=f"ok: {payload.query}",
+            citations=[],
+            model_used=payload.model_name or "unknown",
+        ),
+    )
+
+    response = client.post(
+        "/api/v1/chat/completions",
+        json={
+            "session_id": session_id,
+            "query": "ping",
+            "model_name": "gemma4:12b",
+            "knowledge_base_ids": [],
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["data"]["answer"] == "ok: ping"
 
 
 def test_docx_xlsx_ingest_and_delete() -> None:

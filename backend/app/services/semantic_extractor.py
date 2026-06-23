@@ -92,11 +92,12 @@ class SemanticExtractor:
 
         prompt = EXTRACTION_PROMPT_CN if language.startswith("zh") else EXTRACTION_PROMPT
         full_prompt = prompt.format(conversation=transcript)
+        resolved_model = self._resolve_model_name()
 
         started = time.time()
         try:
             raw = self.ollama.chat(
-                model_name=self.model_name,
+                model_name=resolved_model,
                 messages=[{"role": "user", "content": full_prompt}],
             )
         except Exception:
@@ -110,6 +111,51 @@ class SemanticExtractor:
         )
 
         return self._parse_response(raw)
+
+    def _resolve_model_name(self) -> str:
+        """
+        Use the configured extractor model when available; otherwise fall back
+        to a small locally installed model.
+        """
+        if not hasattr(self.ollama, "list_models"):
+            return self.model_name
+
+        try:
+            available = self.ollama.list_models() or []
+        except Exception:
+            return self.model_name
+
+        available_names = [
+            item.get("name", "") for item in available
+            if isinstance(item, dict) and item.get("name")
+        ]
+        if not available_names:
+            return self.model_name
+
+        if self.model_name in available_names:
+            return self.model_name
+
+        preferred_fallbacks = [
+            "qwen3:0.6b",
+            "qwen3:1.7b",
+            "qwen3:1.8b",
+            "llama3.2:3b",
+            "qwen3:4b",
+            "qwen3.5:4b",
+        ]
+        for candidate in preferred_fallbacks:
+            if candidate in available_names:
+                logger.info(
+                    "SemanticExtractor fallback model selected: %s -> %s",
+                    self.model_name, candidate,
+                )
+                return candidate
+
+        logger.info(
+            "SemanticExtractor using first available local model as fallback: %s -> %s",
+            self.model_name, available_names[0],
+        )
+        return available_names[0]
 
     # ------------------------------------------------------------------
     # Internal

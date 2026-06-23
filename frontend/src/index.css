@@ -34,9 +34,15 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 16px;
   padding: 20px 24px;
   background: linear-gradient(135deg, #111827, #1f2937);
+}
+
+.app-header .ant-space {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .app-content {
@@ -65,4 +71,8 @@ body {
 .chat-message-assistant {
   background: #f9fafb;
   border-color: #e5e7eb;
+}
+
+.chat-message .markdown-renderer {
+  width: 100%;
 }

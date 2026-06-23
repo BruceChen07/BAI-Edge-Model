@@ -14,6 +14,7 @@ import { ChatPage } from "./pages/ChatPage";
 import { AdminPage } from "./pages/AdminPage";
 import { ModelCatalogPage } from "./pages/ModelCatalogPage";
 import { DownloadPage } from "./pages/DownloadPage";
+import { MarkdownStudioPage } from "./pages/MarkdownStudioPage";
 
 const { Header, Content } = Layout;
 const { Paragraph, Title } = Typography;
@@ -51,13 +52,22 @@ function App() {
             </NavLink>
             <NavLink to="/catalog">
               {({ isActive }) => (
-                <Button type={isActive ? "primary" : "default"}>Catalog</Button>
+                <Button type={isActive ? "primary" : "default"}>
+                  {copy.navigation.catalog}
+                </Button>
               )}
             </NavLink>
             <NavLink to="/downloads">
               {({ isActive }) => (
                 <Button type={isActive ? "primary" : "default"}>
-                  Downloads
+                  {copy.navigation.downloads}
+                </Button>
+              )}
+            </NavLink>
+            <NavLink to="/markdown-studio">
+              {({ isActive }) => (
+                <Button type={isActive ? "primary" : "default"}>
+                  {copy.navigation.markdownStudio}
                 </Button>
               )}
             </NavLink>
@@ -75,8 +85,18 @@ function App() {
           <Routes>
             <Route path="/" element={<ChatPage locale={locale} />} />
             <Route path="/admin" element={<AdminPage locale={locale} />} />
-            <Route path="/catalog" element={<ModelCatalogPage />} />
-            <Route path="/downloads" element={<DownloadPage />} />
+            <Route
+              path="/catalog"
+              element={<ModelCatalogPage locale={locale} />}
+            />
+            <Route
+              path="/downloads"
+              element={<DownloadPage locale={locale} />}
+            />
+            <Route
+              path="/markdown-studio"
+              element={<MarkdownStudioPage locale={locale} />}
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Content>

@@ -60,6 +60,8 @@ A local-first edge LLM platform with RAG (Retrieval-Augmented Generation), Agent
 - Retrieval-Augmented Generation: chat with your uploaded documents
 - Streaming SSE response for real-time token output
 - Configurable RAG parameters: `top_k`, `score_threshold`
+- **Markdown rendering** with syntax highlighting, line numbers, one-click copy, LaTeX math (KaTeX), Mermaid diagrams, responsive tables, and 3 built-in themes (Light / Dark / Eye Care)
+- **Chat history persistence**: auto-save to localStorage, restore on page reload / navigation, capped at 10 most recent messages
 
 ###  Knowledge Base Management
 - Upload PDF, DOCX, XLSX, PPTX, TXT files
@@ -347,11 +349,21 @@ BAI-Edge-Model/
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
+│   │   ├── components/
+│   │   │   └── markdown/          # Markdown rendering components
+│   │   │       ├── MarkdownRenderer.tsx   # Main renderer + theme system
+│   │   │       ├── CodeBlock.tsx          # Syntax highlight + copy
+│   │   │       ├── MermaidBlock.tsx       # Mermaid diagram renderer
+│   │   │       ├── markdownThemes.ts      # 3 built-in themes
+│   │   │       └── markdownUtils.ts       # Chunking + sanitizer
 │   │   ├── pages/
-│   │   │   ├── ChatPage.tsx    # Main chat UI
-│   │   │   └── AdminPage.tsx   # Admin panel
-│   │   ├── services/api.ts     # API client + types
-│   │   ├── i18n/messages.ts    # Internationalization
+│   │   │   ├── ChatPage.tsx          # Main chat UI
+│   │   │   ├── MarkdownStudioPage.tsx # Markdown prototype / preview
+│   │   │   └── AdminPage.tsx         # Admin panel
+│   │   ├── services/api.ts           # API client + types
+│   │   ├── i18n/messages.ts          # Internationalization
+│   │   ├── utils/
+│   │   │   └── chatHistoryStorage.ts # localStorage chat persistence
 │   │   └── ...
 │   ├── package.json
 │   └── vite.config.ts
