@@ -1,16 +1,387 @@
 ﻿# BAI-Edge-Model
 
-A local-first edge LLM RAG + Agent service.
+A local-first edge LLM platform with RAG (Retrieval-Augmented Generation), Agent workflows, knowledge base management, and hardware-aware model auto-provisioning. Designed to run entirely on consumer laptops — no cloud dependency.
 
-## Workspace
-- `frontend`: React + TypeScript application
-- `backend`: FastAPI application
-- `storage`: local runtime data and exported artifacts
-- `deliverables`: staged development archives and logs
+---
 
-## Development Flow
-1. Follow the staged plan in `development-plan.md`.
-2. Complete each phase and archive outputs under `deliverables/phase-0X`.
-3. Update `deliverables/logs/development-log.md` after every phase.
-4. Run tests before closing the phase.
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Browser (React)                       │
+│               http://127.0.0.1:5173                      │
+└───────────────────────┬─────────────────────────────────┘
+                        │ REST / SSE
+┌───────────────────────▼─────────────────────────────────┐
+│               FastAPI Backend (:8000)                     │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │
+│  │  Chat    │ │Knowledge │ │  Agent   │ │  Export  │   │
+│  │ Service  │ │  Base    │ │ Service  │ │ Service  │   │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘   │
+│       │            │            │            │          │
+│  ┌────▼────┐ ┌─────▼──────┐ ┌──▼────┐ ┌────▼──────┐   │
+│  │ Ollama  │ │ MinerU +   │ │Memory │ │ Doc Parser│   │
+│  │ Service │ │ OCR Engine │ │Service│ │ (xlsx,    │   │
+│  │         │ │            │ │       │ │  docx,    │   │
+│  │         │ │            │ │       │ │  pptx)    │   │
+│  └────┬────┘ └─────┬──────┘ └──┬────┘ └─────┬─────┘   │
+│       │            │            │            │          │
+│  ┌────▼────────────▼────────────▼────────────▼────┐    │
+│  │              SQLite (local storage)              │    │
+│  └────────────────────────────────────────────────┘    │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  Resource Monitor  │  Model Download Service     │  │
+│  │  (CPU/RAM/GPU)     │  (Auto-provision + MS fallback) │
+│  └──────────────────────────────────────────────────┘  │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+┌───────────────────────▼─────────────────────────────────┐
+│               Ollama (:11434)                             │
+│     Local LLM inference (qwen3, llama3.2, gemma3…)       │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Key Design Principles
+
+| Principle | Implementation |
+|-----------|---------------|
+| **Local-first** | All data stored in local SQLite + filesystem; no cloud uploads |
+| **Hardware-aware** | Auto-detects CPU/RAM/GPU and picks the best-fitting model |
+| **Multi-source pull** | Tries Ollama registry first, falls back to ModelScope for restricted networks |
+| **Tiered timeout** | Per-model-size timeout presets prevent false failure on large models |
+| **Structured logging** | JSON-line logs with `trace_id` for full request-chain tracing |
+
+---
+
+## Capabilities
+
+###  Chat & RAG
+- Multi-turn conversation with session persistence
+- Retrieval-Augmented Generation: chat with your uploaded documents
+- Streaming SSE response for real-time token output
+- Configurable RAG parameters: `top_k`, `score_threshold`
+
+###  Knowledge Base Management
+- Upload PDF, DOCX, XLSX, PPTX, TXT files
+- Auto-parsing via **MinerU** (PDF) + **pytesseract** OCR for scanned documents
+- Chunk-level inspection and full reindex support
+- Multi-knowledge-base selection per chat session
+
+###  Agent Framework
+- Tool-calling agent with extensible tool registry
+- Streaming agent execution with run tracking (`/api/v1/agent/stream`)
+- Run history inspection
+
+###  Hardware Intelligence
+- Real-time CPU / RAM / GPU snapshot API
+- Model feasibility check against current hardware before launch
+- Visual warning modal in UI with one-click model downgrade
+- Auto-downloads the best-fit model on first startup
+
+###  Memory & Context
+- Persistent long-term memory with CRUD API
+- Automatic memory extraction from conversations
+- Memory injection into chat context
+
+###  Export
+- Export chat sessions to Markdown, DOCX, or XLSX
+- Downloadable export artifacts
+
+###  Observability
+- Structured JSON logging (`storage/logs/app.log`)
+- Log query API with filtering by level, module, trace_id, time range
+- Request tracing via `X-Trace-Id` header
+
+---
+
+## Prerequisites
+
+| Component | Required | Check Command |
+|-----------|----------|---------------|
+| **Python** | 3.10+ | `python --version` |
+| **Node.js** | 18+ | `node --version` |
+| **npm** | 9+ | `npm --version` |
+| **Ollama** | latest | `ollama --version` |
+| **MinerU** | optional¹ | `mineru --version` |
+| **Tesseract OCR** | optional² | `tesseract --version` |
+
+¹ MinerU provides higher-quality PDF parsing. Without it, the service falls back to PyMuPDF + OCR.
+
+² Tesseract is needed for OCR of scanned/image-based PDFs.
+
+Install Ollama from [ollama.com](https://ollama.com/download).
+
+---
+
+## Quick Start
+
+### One-Click (Windows)
+
+```bat
+start-dev.bat
+```
+
+This script will:
+1. Create a Python virtual environment and install backend dependencies
+2. Install frontend npm dependencies
+3. Start the backend on **http://127.0.0.1:8000**
+4. Start the frontend on **http://127.0.0.1:5173**
+5. Open the browser automatically
+
+On **first launch**, the service auto-detects your hardware and downloads the best-fitting model from the curated catalog:
+
+| Your Hardware | Auto-Selected Model |
+|---------------|---------------------|
+| 10GB+ RAM + 8GB VRAM | `qwen3:8b` |
+| 5GB+ RAM + 4GB VRAM | `gemma3:4b` or `phi4-mini:3.8b` |
+| 4GB+ RAM + 3GB VRAM | `llama3.2:3b` |
+| 2.5GB+ RAM | `qwen3:1.8b` |
+| Low-end / fallback | `qwen3:0.6b` |
+
+### Manual Start
+
+**Start Ollama:**
+```bash
+ollama serve
+```
+
+**Start Backend:**
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\activate      # Windows
+# source .venv/bin/activate   # macOS/Linux
+pip install -r requirements.txt
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+**Start Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+### Stop Services
+
+Close the two terminal windows started by `start-dev.bat`, or press `Ctrl+C` in each terminal if started manually.
+
+### Verify
+
+```bash
+# Check backend health
+curl http://127.0.0.1:8000/api/v1/system/info
+
+# List available models
+curl http://127.0.0.1:8000/api/v1/models
+
+# Check hardware resources
+curl http://127.0.0.1:8000/api/v1/system/resources
+```
+
+---
+
+## Configuration
+
+All settings use sensible defaults. Override via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
+| `LOG_MAX_BYTES` | `5242880` | Max log file size before rotation (5 MB) |
+| `LOG_BACKUP_COUNT` | `5` | Number of rotated log files to keep |
+| `OLLAMA_READ_TIMEOUT_SECONDS` | `300` | Default read timeout for Ollama (overridden by tiered system) |
+| `OLLAMA_CONNECT_TIMEOUT_SECONDS` | `10` | Connection timeout to Ollama |
+| `OLLAMA_WRITE_TIMEOUT_SECONDS` | `30` | Write timeout |
+| `OLLAMA_LIST_TIMEOUT_SECONDS` | `10` | Model listing timeout |
+| `MINERU_COMMAND` | `mineru` | MinerU CLI command path |
+| `MINERU_DEVICE` | `cpu` | MinerU device (cpu / cuda) |
+| `OLLAMA_PREFER_MODELSCOPE` | `false` | Try ModelScope before Ollama registry (`1`/`true` to enable) |
+
+### Tiered Timeout System
+
+Timeouts are automatically scaled by model parameter size:
+
+| Model Size | Read Timeout | Write Timeout |
+|------------|-------------|---------------|
+| 0.6B | 90s | 30s |
+| 1.5B – 1.8B | 120–150s | 30s |
+| 3B – 3.8B | 240–300s | 30s |
+| 4B | 360s | 60s |
+| 8B | 600s | 60s |
+
+Users can override via the **Timeout Settings** button in the UI or the `PUT /api/v1/system/timeout-override` API.
+
+---
+
+## API Overview
+
+### System
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/system/info` | App version and runtime info |
+| GET | `/api/v1/system/resources` | CPU/RAM/GPU snapshot + recommendations |
+| GET | `/api/v1/system/resources/check` | Feasibility check for a model |
+| GET | `/api/v1/system/models/recommendations` | Models ranked by hardware suitability |
+| GET | `/api/v1/system/models/catalog` | Curated model catalog with download info |
+| POST | `/api/v1/system/models/pull` | Download a model |
+| POST | `/api/v1/system/models/pull/stream` | Download with real-time NDJSON progress |
+| GET | `/api/v1/system/timeout-info` | Resolved timeout tier for a model |
+| PUT | `/api/v1/system/timeout-override` | Set manual timeout override |
+| GET | `/api/v1/models` | List locally available Ollama models |
+
+### Chat & Sessions
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/chat/completions` | Non-streaming chat |
+| POST | `/api/v1/chat/stream` | Streaming SSE chat |
+| POST | `/api/v1/sessions` | Create session |
+| GET | `/api/v1/sessions` | List sessions |
+| GET | `/api/v1/sessions/{id}` | Get session detail |
+| PUT | `/api/v1/sessions/{id}` | Update session |
+| DELETE | `/api/v1/sessions/{id}` | Delete session |
+
+### Knowledge Bases
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/knowledge-bases` | Create KB |
+| GET | `/api/v1/knowledge-bases` | List KBs |
+| GET/PUT/DELETE | `/api/v1/knowledge-bases/{id}` | CRUD operations |
+| POST | `/api/v1/knowledge-bases/{id}/files/upload` | Upload files |
+| GET | `/api/v1/knowledge-bases/{id}/files` | List files |
+| DELETE | `/api/v1/knowledge-bases/{id}/files/{fid}` | Remove file |
+| POST | `/api/v1/knowledge-bases/{id}/reindex` | Force reindex |
+| GET | `/api/v1/knowledge-bases/{id}/chunks` | Inspect chunks |
+
+### Agent & Memory
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/agent/tools` | List available agent tools |
+| POST | `/api/v1/agent/stream` | Streaming agent execution |
+| GET | `/api/v1/agent/runs/{id}` | Get agent run result |
+| POST | `/api/v1/memories` | Create memory |
+| GET | `/api/v1/memories` | List memories |
+| PUT/DELETE | `/api/v1/memories/{id}` | CRUD |
+| POST | `/api/v1/memories/extract` | Auto-extract memories |
+
+### Export & Logs
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/exports/markdown` | Export session to Markdown |
+| POST | `/api/v1/exports/docx` | Export session to DOCX |
+| POST | `/api/v1/exports/xlsx` | Export session to XLSX |
+| GET | `/api/v1/exports/{id}/download` | Download export |
+| GET | `/api/v1/logs` | Query structured logs |
+| GET | `/api/v1/tasks` | List background tasks |
+
+### Settings
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/settings` | Get app settings |
+| PUT | `/api/v1/settings` | Update settings |
+| GET | `/api/v1/languages` | List supported languages |
+
+---
+
+## Project Structure
+
+```
+BAI-Edge-Model/
+├── backend/
+│   ├── app/
+│   │   ├── core/           # Config, DB, logging, request context
+│   │   ├── schemas/        # Pydantic models (chat, agent, KB, export…)
+│   │   ├── services/       # Business logic
+│   │   │   ├── chat_service.py            # Chat orchestration
+│   │   │   ├── ollama_service.py          # Ollama API client
+│   │   │   ├── resource_monitor.py        # Hardware detection
+│   │   │   ├── model_download_service.py  # Auto-provision + ModelScope
+│   │   │   ├── knowledge_base_service.py  # KB CRUD
+│   │   │   ├── ingest_service.py          # File ingest pipeline
+│   │   │   ├── parser_service.py          # PDF/DOCX/XLSX parser
+│   │   │   ├── mineru_service.py          # MinerU integration
+│   │   │   ├── agent_service.py           # Agent framework
+│   │   │   ├── memory_service.py          # Long-term memory
+│   │   │   ├── export_service.py          # Session export
+│   │   │   ├── log_service.py             # Log query
+│   │   │   └── ...
+│   │   ├── utils/           # ID generation
+│   │   └── main.py          # FastAPI app + all routes
+│   ├── tests/
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── ChatPage.tsx    # Main chat UI
+│   │   │   └── AdminPage.tsx   # Admin panel
+│   │   ├── services/api.ts     # API client + types
+│   │   ├── i18n/messages.ts    # Internationalization
+│   │   └── ...
+│   ├── package.json
+│   └── vite.config.ts
+├── storage/         # Runtime data (gitignored)
+├── start-dev.bat    # One-click launcher
+└── .gitignore
+```
+
+---
+
+## Development
+
+### Run Tests
+
+```bash
+cd backend
+python -m pytest tests/ -v
+```
+
+### Lint
+
+```bash
+# Frontend
+cd frontend
+npm run lint
+
+# Backend (ruff recommended)
+pip install ruff
+ruff check backend/
+```
+
+### Build Frontend
+
+```bash
+cd frontend
+npm run build
+```
+
+Output goes to `frontend/dist/`.
+
+---
+
+## Troubleshooting
+
+### "No local Ollama models are available"
+The service auto-downloads a model on first startup. If it fails:
+1. Ensure Ollama is running: `ollama serve`
+2. Manually pull: `ollama pull qwen3:1.8b`
+3. Or use ModelScope: set `OLLAMA_PREFER_MODELSCOPE=1` and restart
+
+### Chat times out
+- If using a large model on CPU, increase the read timeout via the UI or API
+- Check hardware load with `/api/v1/system/resources`
+- Query logs for timeout events: `GET /api/v1/logs?module=ollama`
+
+### PDF parsing quality
+- Install MinerU for best results: `pip install magic-pdf`
+- For scanned PDFs, install Tesseract OCR and its Chinese language pack
+
+### Model download from HuggingFace is blocked
+- The service automatically falls back to ModelScope
+- Or set `OLLAMA_PREFER_MODELSCOPE=1` to prioritize ModelScope
+
+---
+
+## License
+
+MIT
 
