@@ -21,14 +21,20 @@ from app.schemas.chat import ChatRequestDTO, SessionCreateDTO
 from app.schemas.common import ApiResponse
 from app.schemas.export import ExportRequestDTO
 from app.schemas.knowledge_base import KnowledgeBaseCreateDTO, KnowledgeBaseUpdateDTO
-from app.schemas.memory import MemoryCreateDTO
+from app.schemas.memory import (
+    MemoryConfigDTO,
+    MemoryCreateDTO,
+    MemorySearchRequest,
+)
 from app.schemas.settings import SettingsUpdateDTO
 from app.services.agent_service import AgentService
 from app.services.chat_service import ChatService
 from app.services.export_service import ExportService
 from app.services.ingest_service import IngestService
 from app.services.knowledge_base_service import KnowledgeBaseService
+from app.services.llmfit_service import LlmfitService
 from app.services.log_service import LogService
+from app.services.memory_orchestrator import MemoryOrchestrator
 from app.services.memory_service import MemoryService
 from app.services.model_download_service import ModelDownloadService
 from app.services.ollama_service import OllamaService
@@ -81,6 +87,8 @@ settings_service = SettingsService()
 kb_service = KnowledgeBaseService()
 chat_service = ChatService()
 memory_service = MemoryService()
+memory_orchestrator = MemoryOrchestrator()
+llmfit_service = LlmfitService()
 agent_service = AgentService()
 export_service = ExportService()
 task_service = TaskService()
@@ -257,6 +265,116 @@ def pull_model_stream(payload: dict) -> StreamingResponse:
         ollama.pull_model_stream(model_name),
         media_type="application/x-ndjson",
     )
+
+
+# ---------------------------------------------------------------------------
+# llmfit integration — hardware detection & model recommendation
+# ---------------------------------------------------------------------------
+
+@app.get("/api/v1/llmfit/system")
+def llmfit_system() -> ApiResponse[dict]:
+    """Return hardware profile from llmfit (with psutil fallback)."""
+    profile = llmfit_service.get_system_profile()
+    return ApiResponse(data={
+        "available": llmfit_service.available,
+        "source": "llmfit" if llmfit_service.available else "psutil",
+        "cpu": {
+            "cores": profile.cpu.cores,
+            "model": profile.cpu.model,
+            "arch": profile.cpu.arch,
+        },
+        "ram": {
+            "total_gb": profile.ram.total_gb,
+            "available_gb": profile.ram.available_gb,
+        },
+        "gpus": [
+            {"name": g.name, "vram_gb": g.vram_gb, "backend": g.backend}
+            for g in profile.gpus
+        ],
+        "os": profile.os,
+    })
+
+
+@app.get("/api/v1/llmfit/recommend")
+def llmfit_recommend(
+    use_case: str = Query("general", description="general|coding|reasoning|chat|multimodal|embedding"),
+    limit: int = Query(10, ge=1, le=50),
+    min_fit: str = Query("marginal", description="perfect|good|marginal"),
+    sort: str = Query("score", description="score|tps|params|mem|ctx"),
+    include_too_tight: bool = Query(False),
+) -> ApiResponse[dict]:
+    """Return scored model recommendations from llmfit (with catalog fallback)."""
+    recs = llmfit_service.get_recommendations(
+        limit=limit,
+        use_case=use_case,
+        min_fit=min_fit,
+        sort=sort,
+        include_too_tight=include_too_tight,
+    )
+    return ApiResponse(data={
+        "available": llmfit_service.available,
+        "source": "llmfit" if llmfit_service.available else "catalog",
+        "count": len(recs),
+        "recommendations": [
+            {
+                "model_name": r.model_name,
+                "provider": r.provider,
+                "param_size": r.param_size,
+                "score": {
+                    "total": r.score.total,
+                    "quality": r.score.quality,
+                    "speed": r.score.speed,
+                    "fit": r.score.fit,
+                    "context": r.score.context,
+                },
+                "fit_level": r.fit_level,
+                "estimated_tps": r.estimated_tps,
+                "quantization": r.quantization,
+                "memory_required_gb": r.memory_required_gb,
+                "run_mode": r.run_mode,
+                "use_case": r.use_case,
+                "max_context": r.max_context,
+                "is_moe": r.is_moe,
+                "available": r.available,
+            }
+            for r in recs
+        ],
+    })
+
+
+@app.get("/api/v1/llmfit/models/{model_name:path}")
+def llmfit_model_info(model_name: str) -> ApiResponse[dict]:
+    """Return detailed info for a specific model from llmfit."""
+    rec = llmfit_service.get_model_info(model_name)
+    if rec is None:
+        raise HTTPException(status_code=404, detail=f"Model not found in llmfit: {model_name}")
+    return ApiResponse(data={
+        "model_name": rec.model_name,
+        "provider": rec.provider,
+        "param_size": rec.param_size,
+        "score": {
+            "total": rec.score.total,
+            "quality": rec.score.quality,
+            "speed": rec.score.speed,
+            "fit": rec.score.fit,
+            "context": rec.score.context,
+        },
+        "fit_level": rec.fit_level,
+        "estimated_tps": rec.estimated_tps,
+        "quantization": rec.quantization,
+        "memory_required_gb": rec.memory_required_gb,
+        "run_mode": rec.run_mode,
+        "use_case": rec.use_case,
+        "max_context": rec.max_context,
+        "is_moe": rec.is_moe,
+    })
+
+
+@app.post("/api/v1/llmfit/cache/refresh")
+def llmfit_refresh_cache() -> ApiResponse[dict]:
+    """Clear the llmfit in-memory cache to force fresh data."""
+    llmfit_service.refresh_cache()
+    return ApiResponse(data={"message": "llmfit cache cleared"})
 
 
 @app.get("/api/v1/settings")
@@ -517,39 +635,83 @@ def query_logs(
 
 @app.get("/api/v1/memories")
 def list_memories() -> ApiResponse[list[dict]]:
-    return ApiResponse(data=[item.model_dump() for item in memory_service.list_all()])
+    return ApiResponse(data=memory_orchestrator.list_memories())
 
 
 @app.post("/api/v1/memories")
 def create_memory(payload: MemoryCreateDTO) -> ApiResponse[dict]:
-    return ApiResponse(data=memory_service.create(payload).model_dump())
+    return ApiResponse(data=memory_orchestrator.create_memory(payload).model_dump())
 
 
 @app.put("/api/v1/memories/{memory_id}")
 def update_memory(memory_id: str, payload: MemoryCreateDTO) -> ApiResponse[dict]:
-    return ApiResponse(data=memory_service.update(memory_id, payload).model_dump())
+    return ApiResponse(data=memory_orchestrator.update_memory(memory_id, payload).model_dump())
 
 
 @app.delete("/api/v1/memories/{memory_id}")
 def delete_memory(memory_id: str) -> ApiResponse[dict]:
-    memory_service.delete(memory_id)
+    memory_orchestrator.delete_memory(memory_id)
     return ApiResponse(data={"deleted": True, "memory_id": memory_id})
+
+
+@app.post("/api/v1/memories/search")
+def search_memories(payload: MemorySearchRequest) -> ApiResponse[list[dict]]:
+    results = memory_orchestrator.search_memories(
+        query=payload.query,
+        top_k=payload.top_k,
+        min_similarity=payload.min_similarity,
+    )
+    return ApiResponse(data=results)
 
 
 @app.post("/api/v1/memories/extract")
 def extract_memory(payload: dict) -> ApiResponse[dict]:
-    memory = memory_service.create(
+    memory = memory_orchestrator.create_memory(
         MemoryCreateDTO(
             memory_type="fact",
             title=payload.get("title", "Extracted Memory"),
             content=payload.get("content", "No content"),
-            importance=0.7,
-            confidence=0.7,
+            importance=payload.get("importance", 0.7),
+            confidence=payload.get("confidence", 0.7),
             write_mode="auto",
             status="active",
+            source_session_id=payload.get("session_id", ""),
+            tags=payload.get("tags", []),
         )
     )
     return ApiResponse(data=memory.model_dump())
+
+
+@app.post("/api/v1/memories/extract/auto")
+def auto_extract_memories(payload: dict) -> ApiResponse[list[dict]]:
+    session_id = payload.get("session_id", "")
+    messages = payload.get("messages", [])
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id is required")
+    created = memory_orchestrator.auto_extract_from_messages(
+        session_id, messages)
+    return ApiResponse(data=[m.model_dump() for m in created])
+
+
+@app.post("/api/v1/memories/compact")
+def compact_memories() -> ApiResponse[dict]:
+    result = memory_orchestrator.compact()
+    return ApiResponse(data=result)
+
+
+@app.get("/api/v1/memories/stats")
+def memory_stats() -> ApiResponse[dict]:
+    stats = memory_orchestrator.get_stats()
+    cache_stats = memory_orchestrator.cache.stats()
+    return ApiResponse(data={
+        "persistent": stats.model_dump(),
+        "cache": cache_stats,
+    })
+
+
+@app.get("/api/v1/memories/config")
+def get_memory_config() -> ApiResponse[dict]:
+    return ApiResponse(data=memory_orchestrator.get_config())
 
 
 @app.get("/api/v1/agent/tools")
