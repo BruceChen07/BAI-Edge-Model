@@ -442,16 +442,33 @@ def catalog_detail(model_name: str) -> ApiResponse[dict]:
 
 @app.post("/api/v1/catalog/sync")
 def catalog_sync(payload: dict | None = None) -> ApiResponse[dict]:
-    """Sync catalog from curated model list or llmfit."""
-    source = (payload or {}).get("source", "curated")
+    """Sync catalog from curated model list, llmfit, or local Ollama models."""
+    source = str((payload or {}).get("source", "curated")).strip() or "curated"
+    count_before = catalog_service.count()
+
+    if source in {"local", "auto"}:
+        local_models = chat_service.list_models()
+        result = catalog_service.sync_local_models(local_models)
+        return ApiResponse(
+            data={
+                "message": "local model sync completed",
+                "source": source,
+                "count_before": count_before,
+                "hint": "This endpoint synced local Ollama models into the catalog table.",
+                "local_model_count": len(local_models),
+                "result": result.model_dump(),
+            }
+        )
+
     msg = "catalog sync trigger received"
-    count = catalog_service.count()
-    return ApiResponse(data={
-        "message": msg,
-        "source": source,
-        "count_before": count,
-        "hint": "Run: python -m scripts.sync_model_catalog --source " + source,
-    })
+    return ApiResponse(
+        data={
+            "message": msg,
+            "source": source,
+            "count_before": count_before,
+            "hint": "Run: python -m scripts.sync_model_catalog --source " + source,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------

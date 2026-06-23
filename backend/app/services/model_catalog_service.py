@@ -18,6 +18,7 @@ from app.schemas.catalog import (
     CatalogListResponse,
     CatalogSyncResult,
 )
+from app.services.resource_monitor import extract_param_size
 
 logger = get_logger("app.catalog")
 
@@ -161,6 +162,45 @@ class ModelCatalogService:
             source=entries[0].source if entries else "unknown",
             errors=errors,
         )
+
+    def sync_local_models(self, local_models: list[dict[str, Any]]) -> CatalogSyncResult:
+        entries: list[CatalogEntryDTO] = []
+        for item in local_models:
+            model_name = str(item.get("name", "")).strip()
+            if not model_name:
+                continue
+            entries.append(
+                CatalogEntryDTO(
+                    id=str(uuid.uuid4()),
+                    model_name=model_name,
+                    provider=_infer_provider(model_name),
+                    param_size=extract_param_size(model_name),
+                    version="",
+                    score_total=0,
+                    score_quality=0,
+                    score_speed=0,
+                    score_fit=0,
+                    score_context=0,
+                    fit_level="unknown",
+                    estimated_tps=0,
+                    quantization=_infer_quantization(model_name),
+                    memory_required_gb=0,
+                    vram_required_gb=0,
+                    run_mode="CPU",
+                    use_case="general",
+                    max_context=8192,
+                    is_moe=False,
+                    available=True,
+                    description="",
+                    tags=[],
+                    source="local",
+                    raw_json=json.dumps(item, ensure_ascii=False),
+                    last_synced_at="",
+                    created_at="",
+                    updated_at="",
+                )
+            )
+        return self.upsert_batch(entries)
 
     # ------------------------------------------------------------------
     # Read
@@ -314,3 +354,26 @@ class ModelCatalogService:
 
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _infer_provider(model_name: str) -> str:
+    name = model_name.lower()
+    if name.startswith("qwen"):
+        return "Qwen"
+    if name.startswith("llama"):
+        return "Meta"
+    if name.startswith("gemma"):
+        return "Google"
+    if name.startswith("phi"):
+        return "Microsoft"
+    if name.startswith("deepseek"):
+        return "DeepSeek"
+    return "unknown"
+
+
+def _infer_quantization(model_name: str) -> str:
+    lowered = model_name.lower()
+    for token in ("q2", "q3", "q4", "q5", "q6", "q8"):
+        if token in lowered:
+            return token.upper()
+    return "Q4_K_M"

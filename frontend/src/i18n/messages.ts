@@ -98,9 +98,14 @@ type MessageBundle = {
     fitPlaceholder: string
     minScore: string
     refresh: string
+    syncLocal: string
     syncCatalog: string
     syncFailed: string
     modelsInCatalog: string
+    localDetected: string
+    catalogDetected: string
+    showing: string
+    localOnlyHint: string
     model: string
     provider: string
     size: string
@@ -267,9 +272,14 @@ export const messages: Record<Locale, MessageBundle> = {
       fitPlaceholder: '适配等级',
       minScore: '最低分数',
       refresh: '刷新',
+      syncLocal: '同步本地',
       syncCatalog: '同步目录',
       syncFailed: '同步失败',
       modelsInCatalog: '个模型',
+      localDetected: '本地模型',
+      catalogDetected: '目录模型',
+      showing: '当前展示',
+      localOnlyHint: '本地多出 {n} 个，建议点“同步本地”',
       model: '模型',
       provider: '厂商',
       size: '参数',
@@ -434,9 +444,14 @@ export const messages: Record<Locale, MessageBundle> = {
       fitPlaceholder: 'Fit Level',
       minScore: 'Min Score',
       refresh: 'Refresh',
+      syncLocal: 'Sync Local',
       syncCatalog: 'Sync Catalog',
       syncFailed: 'Sync failed',
       modelsInCatalog: 'models in catalog',
+      localDetected: 'Local',
+      catalogDetected: 'Catalog',
+      showing: 'Showing',
+      localOnlyHint: '{n} local model(s) missing in catalog, click "Sync Local"',
       model: 'Model',
       provider: 'Provider',
       size: 'Size',

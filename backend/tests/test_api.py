@@ -77,6 +77,38 @@ def test_models_endpoint(monkeypatch) -> None:
     assert response.json()["data"][0]["name"] == "qwen3.5:9b"
 
 
+def test_catalog_sync_local_upserts_models(monkeypatch) -> None:
+    monkeypatch.setattr(
+        chat_service.ollama_service,
+        "list_models",
+        lambda: [
+            {"name": "qwen3.5:9b", "size": 1, "modified_at": "now", "digest": "abc"},
+            {"name": "llama3.2:3b", "size": 1,
+                "modified_at": "now", "digest": "def"},
+            {"name": "gemma4:12b", "size": 1, "modified_at": "now", "digest": "ghi"},
+        ],
+    )
+
+    sync_response = client.post(
+        "/api/v1/catalog/sync", json={"source": "local"})
+    assert sync_response.status_code == 200
+    assert sync_response.json(
+    )["data"]["message"] == "local model sync completed"
+
+    list_response = client.get(
+        "/api/v1/catalog", params={"limit": 100, "sort_by": "model_name", "sort_dir": "asc"})
+    assert list_response.status_code == 200
+    payload = list_response.json()["data"]
+    items = payload["items"]
+    names = [i["model_name"] for i in items]
+    assert "qwen3.5:9b" in names
+    assert "llama3.2:3b" in names
+    assert "gemma4:12b" in names
+    synced_item = next(i for i in items if i["model_name"] == "qwen3.5:9b")
+    assert synced_item["source"] == "local"
+    assert synced_item["available"] is True
+
+
 def test_knowledge_base_chat_export_flow(monkeypatch) -> None:
     monkeypatch.setattr(
         chat_service.ollama_service,
