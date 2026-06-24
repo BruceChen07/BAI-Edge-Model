@@ -1,0 +1,45 @@
+Command:
+python -m pytest tests/test_api.py
+
+Working Directory:
+d:\Workspace\BAI-Edge-Model\backend
+
+Result:
+- Exit code: 0
+- Collected: 13 tests
+- Passed: 13
+- Warnings: 5 deprecation warnings from Swig-related runtime bindings
+
+Relevant covered checks:
+- /api/v1/models exposes upload capability fields
+- unsupported extension upload returns HTTP 400
+- oversized upload returns HTTP 400
+- non-multimodal model upload returns HTTP 400
+- existing DOCX/XLSX ingest flow still works
+- OCR image upload regression still works
+
+Initial environment note:
+- Running pytest from repository root failed with `ModuleNotFoundError: No module named 'app'`
+- Resolution: reran from `backend/` directory
+
+---
+
+Command:
+python -m pytest tests/test_api.py
+
+Working Directory:
+d:\Workspace\BAI-Edge-Model\backend
+
+Result:
+- Exit code: 0
+- Collected: 17 tests
+- Passed: 17
+- Warnings: 5 deprecation warnings from Swig-related runtime bindings
+
+Relevant covered checks:
+- chat attachment upload succeeds for multimodal model
+- chat attachment upload rejects non-multimodal model
+- `/api/v1/chat/completions` binds uploaded attachments to the user message
+- session detail payload returns message-side attachment lists
+- image attachment payload reaches Ollama `images` request field
+- chat attachment download and delete flow works end-to-end

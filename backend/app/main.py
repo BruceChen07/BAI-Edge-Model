@@ -30,6 +30,7 @@ from app.schemas.memory import (
 from app.schemas.settings import SettingsUpdateDTO
 from app.services.agent_service import AgentService
 from app.services.chat_service import ChatService
+from app.services.chat_attachment_service import ChatAttachmentService
 from app.services.download_orchestrator import DownloadOrchestrator
 from app.services.export_service import ExportService
 from app.services.ingest_service import IngestService
@@ -44,6 +45,11 @@ from app.services.ollama_service import OllamaService
 from app.services.resource_monitor import extract_param_size
 from app.services.settings_service import SettingsService
 from app.services.task_service import TaskService
+from app.services.upload_policy import (
+    UploadValidationError,
+    infer_model_upload_capability,
+    validate_model_upload_capability,
+)
 
 _lifespan_logger = get_logger("app.lifespan")
 
@@ -90,6 +96,7 @@ logger = get_logger("app.api")
 settings_service = SettingsService()
 kb_service = KnowledgeBaseService()
 chat_service = ChatService()
+chat_attachment_service = ChatAttachmentService()
 memory_service = MemoryService()
 memory_orchestrator = MemoryOrchestrator()
 llmfit_service = LlmfitService()
@@ -364,7 +371,25 @@ def _enrich_local_model(item: dict) -> dict:
             "source": enriched["source"] if enriched["source"] != "local" else "local+catalog",
         })
 
+    enriched.update(
+        infer_model_upload_capability(
+            model_name,
+            str(enriched.get("use_case") or ""),
+        )
+    )
+
     return enriched
+
+
+def _resolve_model_use_case(model_name: str) -> str | None:
+    local_model = next(
+        (item for item in chat_service.list_models()
+         if item.get("name") == model_name),
+        None,
+    )
+    if local_model is None:
+        return None
+    return str(_enrich_local_model(local_model).get("use_case") or "")
 
 
 @app.get("/api/v1/system/models/catalog")
@@ -759,14 +784,66 @@ def delete_knowledge_base(kb_id: str) -> ApiResponse[dict]:
 
 @app.post("/api/v1/knowledge-bases/{kb_id}/files/upload")
 async def upload_file(
-    kb_id: str, file: UploadFile = File(...), enable_ocr: bool = Query(True)
+    kb_id: str,
+    file: UploadFile = File(...),
+    enable_ocr: bool = Query(True),
+    model_name: str | None = Query(None),
 ) -> ApiResponse[dict]:
     try:
+        if model_name:
+            validate_model_upload_capability(
+                model_name,
+                _resolve_model_use_case(model_name),
+            )
         data = await ingest_service.upload(kb_id, file, enable_ocr=enable_ocr)
         payload = {**data, "document": data["document"].model_dump()}
         return ApiResponse(data=payload)
+    except UploadValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/v1/sessions/{session_id}/attachments")
+async def upload_chat_attachment(
+    session_id: str,
+    file: UploadFile = File(...),
+    enable_ocr: bool = Query(True),
+    model_name: str | None = Query(None),
+) -> ApiResponse[dict]:
+    try:
+        if model_name:
+            validate_model_upload_capability(
+                model_name,
+                _resolve_model_use_case(model_name),
+            )
+        attachment = await chat_attachment_service.upload(
+            session_id,
+            file,
+            enable_ocr=enable_ocr,
+        )
+        return ApiResponse(data=attachment.model_dump())
+    except UploadValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/api/v1/chat/attachments/{attachment_id}")
+def delete_chat_attachment(attachment_id: str) -> ApiResponse[dict]:
+    try:
+        return ApiResponse(data=chat_attachment_service.delete(attachment_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/chat/attachments/{attachment_id}/download")
+def download_chat_attachment(attachment_id: str):
+    try:
+        attachment = chat_attachment_service.get(attachment_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return FileResponse(attachment.storage_path, filename=attachment.file_name)
 
 
 @app.get("/api/v1/knowledge-bases/{kb_id}/files")

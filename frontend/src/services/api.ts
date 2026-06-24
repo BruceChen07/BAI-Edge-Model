@@ -27,6 +27,10 @@ export type ModelInfo = {
   is_moe?: boolean
   available?: boolean
   source?: string
+  supports_multimodal?: boolean
+  supports_file_upload?: boolean
+  supported_upload_types?: string[]
+  capability_source?: string
 }
 
 export type SessionInfo = {
@@ -37,6 +41,40 @@ export type SessionInfo = {
   rag_enabled: boolean
   agent_enabled: boolean
   last_message_at?: string | null
+}
+
+export type ChatAttachmentInfo = {
+  id: string
+  session_id: string
+  message_id?: string | null
+  file_name: string
+  file_ext: string
+  mime_type: string
+  file_size: number
+  attachment_type: string
+  storage_path: string
+  extracted_text_preview: string
+  ocr_status: string
+  status: string
+  created_at?: string | null
+}
+
+export type SessionMessage = {
+  id: string
+  session_id: string
+  role: 'user' | 'assistant'
+  content: string
+  content_type: string
+  model_name: string
+  prompt_tokens: number
+  completion_tokens: number
+  status: string
+  attachments: ChatAttachmentInfo[]
+}
+
+export type SessionDetail = {
+  session: SessionInfo
+  messages: SessionMessage[]
 }
 
 export type KnowledgeBaseInfo = {
@@ -97,6 +135,7 @@ export type ChatPayload = {
   rag_enabled?: boolean
   agent_enabled?: boolean
   knowledge_base_ids?: string[]
+  attachment_ids?: string[]
   top_k?: number
   score_threshold?: number
   include_memory?: boolean
@@ -422,6 +461,8 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   listSessions: () => request<SessionInfo[]>('/sessions'),
+  getSession: (sessionId: string) =>
+    request<SessionDetail>(`/sessions/${encodeURIComponent(sessionId)}`),
   listTasks: () => request<Array<Record<string, unknown>>>('/tasks'),
   getTask: (taskId: string) => request<Record<string, unknown>>(`/tasks/${taskId}`),
   listMemories: () => request<Array<Record<string, unknown>>>('/memories'),
@@ -437,11 +478,17 @@ export const api = {
     kbId: string
     file: File
     enableOcr?: boolean
+    modelName?: string
   }) => {
     const formData = new FormData()
     formData.append('file', payload.file)
+    const params = new URLSearchParams()
+    params.set('enable_ocr', String(payload.enableOcr ?? true))
+    if (payload.modelName) {
+      params.set('model_name', payload.modelName)
+    }
     return request<Record<string, unknown>>(
-      `/knowledge-bases/${payload.kbId}/files/upload?enable_ocr=${payload.enableOcr ?? true}`,
+      `/knowledge-bases/${payload.kbId}/files/upload?${params.toString()}`,
       {
         method: 'POST',
         body: formData,
@@ -459,6 +506,34 @@ export const api = {
         agent_enabled: payload.agent_enabled ?? false,
       }),
     }),
+  uploadChatAttachment: (payload: {
+    sessionId: string
+    file: File
+    enableOcr?: boolean
+    modelName?: string
+  }) => {
+    const formData = new FormData()
+    formData.append('file', payload.file)
+    const params = new URLSearchParams()
+    params.set('enable_ocr', String(payload.enableOcr ?? true))
+    if (payload.modelName) {
+      params.set('model_name', payload.modelName)
+    }
+    return request<ChatAttachmentInfo>(
+      `/sessions/${encodeURIComponent(payload.sessionId)}/attachments?${params.toString()}`,
+      {
+        method: 'POST',
+        body: formData,
+      },
+    )
+  },
+  deleteChatAttachment: (attachmentId: string) =>
+    request<{ deleted: boolean; attachment_id: string }>(
+      `/chat/attachments/${encodeURIComponent(attachmentId)}`,
+      {
+        method: 'DELETE',
+      },
+    ),
   chat: (payload: ChatPayload) =>
     request<ChatResponse>('/chat/completions', {
       method: 'POST',

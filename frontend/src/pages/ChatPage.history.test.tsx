@@ -9,6 +9,7 @@ vi.mock("../components/markdown/MarkdownRenderer", () => ({
 }));
 
 vi.mock("../services/api", () => ({
+  API_BASE: "http://127.0.0.1:8000/api/v1",
   api: {
     listKnowledgeBases: vi.fn().mockResolvedValue([]),
     getModels: vi.fn().mockResolvedValue([
@@ -58,6 +59,8 @@ vi.mock("../services/api", () => ({
     getModelRecommendations: vi.fn().mockResolvedValue([]),
     createSession: vi.fn(),
     chat: vi.fn(),
+    uploadChatAttachment: vi.fn(),
+    deleteChatAttachment: vi.fn(),
     createKnowledgeBase: vi.fn(),
     uploadKnowledgeBaseFile: vi.fn(),
   },
@@ -76,6 +79,19 @@ describe("ChatPage history restore", () => {
         selectedKnowledgeBases: ["kb-1"],
         prompt: "follow-up question",
         markdownTheme: "dark",
+        pendingAttachments: [
+          {
+            id: "pending-attachment",
+            session_id: "session-keep",
+            file_name: "待发送附件.txt",
+            file_ext: ".txt",
+            mime_type: "text/plain",
+            file_size: 12,
+            attachment_type: "document",
+            storage_path: "storage/pending.txt",
+            status: "uploaded",
+          },
+        ],
         messages: [
           {
             id: "message-user",
@@ -83,6 +99,20 @@ describe("ChatPage history restore", () => {
             role: "user",
             content: "历史用户消息",
             modelName: "gemma4:12b",
+            attachments: [
+              {
+                id: "linked-attachment",
+                session_id: "session-keep",
+                message_id: "message-user",
+                file_name: "历史附件.pdf",
+                file_ext: ".pdf",
+                mime_type: "application/pdf",
+                file_size: 2048,
+                attachment_type: "document",
+                storage_path: "storage/history.pdf",
+                status: "linked",
+              },
+            ],
           },
           {
             id: "message-assistant",
@@ -116,6 +146,8 @@ describe("ChatPage history restore", () => {
       expect(screen.getByText("历史助手消息")).toBeInTheDocument();
     });
 
+    expect(screen.getByText("历史附件.pdf")).toBeInTheDocument();
+    expect(screen.getByText("待发送附件.txt")).toBeInTheDocument();
     expect(screen.getByDisplayValue("follow-up question")).toBeInTheDocument();
     expect(screen.getByTitle("gemma4:12b")).toBeInTheDocument();
   });

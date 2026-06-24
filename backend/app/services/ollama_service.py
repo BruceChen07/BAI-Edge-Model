@@ -97,7 +97,7 @@ class OllamaService:
             )
         return models
 
-    def chat(self, *, model_name: str, messages: list[dict[str, str]]) -> str:
+    def chat(self, *, model_name: str, messages: list[dict[str, Any]]) -> str:
         started_at = time.time()
         timeout = self._chat_timeout(model_name=model_name)
         request_payload = {"model": model_name, "messages": messages, "stream": False}

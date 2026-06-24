@@ -3,6 +3,22 @@ export const MAX_CHAT_HISTORY_MESSAGES = 10;
 
 export type ChatHistoryRole = "user" | "assistant";
 
+export type ChatHistoryAttachment = {
+  id: string;
+  session_id: string;
+  message_id?: string | null;
+  file_name: string;
+  file_ext: string;
+  mime_type: string;
+  file_size: number;
+  attachment_type: string;
+  storage_path: string;
+  extracted_text_preview?: string;
+  ocr_status?: string;
+  status?: string;
+  created_at?: string | null;
+};
+
 export type ChatHistoryMessage = {
   id: string;
   sentAt: string;
@@ -10,6 +26,7 @@ export type ChatHistoryMessage = {
   content: string;
   modelName?: string;
   citations?: Array<Record<string, unknown>>;
+  attachments?: ChatHistoryAttachment[];
 };
 
 export type ChatHistorySnapshot = {
@@ -18,6 +35,7 @@ export type ChatHistorySnapshot = {
   selectedKnowledgeBases: string[];
   prompt: string;
   markdownTheme: "light" | "dark" | "eyeCare";
+  pendingAttachments: ChatHistoryAttachment[];
   messages: ChatHistoryMessage[];
 };
 
@@ -29,6 +47,7 @@ type PersistedChatHistorySnapshot = {
   selectedKnowledgeBases?: string[];
   prompt?: string;
   markdownTheme?: "light" | "dark" | "eyeCare";
+  pendingAttachments?: ChatHistoryAttachment[];
   messages?: ChatHistoryMessage[];
 };
 
@@ -65,6 +84,7 @@ export function createChatHistoryMessage(
     content: input.content,
     modelName: input.modelName,
     citations: input.citations,
+    attachments: input.attachments ?? [],
   };
 }
 
@@ -88,6 +108,7 @@ export function normalizeChatHistorySnapshot(
     selectedKnowledgeBases: snapshot?.selectedKnowledgeBases ?? [],
     prompt: snapshot?.prompt ?? "",
     markdownTheme: snapshot?.markdownTheme ?? "light",
+    pendingAttachments: snapshot?.pendingAttachments ?? [],
     messages: trimChatHistoryMessages(snapshot?.messages ?? []),
   };
 }
@@ -113,6 +134,7 @@ export function loadChatHistorySnapshot(
       selectedKnowledgeBases: parsed.selectedKnowledgeBases ?? [],
       prompt: parsed.prompt ?? "",
       markdownTheme: parsed.markdownTheme ?? "light",
+      pendingAttachments: parsed.pendingAttachments ?? [],
       messages: Array.isArray(parsed.messages)
         ? parsed.messages.map((message) => createChatHistoryMessage(message))
         : [],
@@ -140,6 +162,7 @@ export function saveChatHistorySnapshot(
     selectedKnowledgeBases: normalized.selectedKnowledgeBases,
     prompt: normalized.prompt,
     markdownTheme: normalized.markdownTheme,
+    pendingAttachments: normalized.pendingAttachments,
     messages: normalized.messages,
   };
 

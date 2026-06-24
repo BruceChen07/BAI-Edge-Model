@@ -4,12 +4,13 @@ import json
 import logging
 import re
 import time
-from typing import Iterator
+from typing import Any, Iterator
 
 from app.core.database import get_connection
 from app.core.logging import get_logger, log_event
 from app.core.request_context import get_trace_id
 from app.schemas.chat import ChatRequestDTO, ChatResponseDTO, MessageDTO, SessionCreateDTO, SessionDTO
+from app.services.chat_attachment_service import ChatAttachmentService
 from app.services.ollama_service import OllamaService
 from app.services.resource_monitor import (
     check_model_feasibility,
@@ -49,6 +50,7 @@ class ChatService:
         self.ollama_service = OllamaService()
         self.settings_service = SettingsService()
         self.memory_orchestrator = MemoryOrchestrator()
+        self.attachment_service = ChatAttachmentService()
         self.logger = get_logger("app.chat")
 
     def create_session(self, payload: SessionCreateDTO) -> SessionDTO:
@@ -78,9 +80,19 @@ class ChatService:
                 "SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
             messages = conn.execute(
                 "SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC", (session_id,)).fetchall()
+        message_rows = [dict(row) for row in messages]
+        attachments_by_message = self.attachment_service.list_for_message_ids(
+            [row["id"] for row in message_rows]
+        )
         return {
             "session": SessionDTO(id=session["id"], title=session["title"], mode=session["mode"], language=session["language"], rag_enabled=bool(session["rag_enabled"]), agent_enabled=bool(session["agent_enabled"]), last_message_at=session["last_message_at"]),
-            "messages": [MessageDTO(**dict(row)) for row in messages],
+            "messages": [
+                MessageDTO(
+                    **row,
+                    attachments=attachments_by_message.get(row["id"], []),
+                )
+                for row in message_rows
+            ],
         }
 
     def update_session_title(self, session_id: str, title: str) -> SessionDTO:
@@ -119,14 +131,25 @@ class ChatService:
         citations = self._search(
             payload.knowledge_base_ids, payload.query, payload.top_k)
         model_name = self._resolve_model_name(payload.model_name)
+        attachment_context, attachment_images, _ = self.attachment_service.build_prompt_payload(
+            payload.session_id,
+            payload.attachment_ids,
+        )
         answer = self._try_grounded_source_answer(payload.query, citations)
         if not answer:
             answer = self._compose_answer(
                 payload.query, citations, model_name, payload.session_id,
+                attachment_context=attachment_context,
+                attachment_images=attachment_images,
                 include_memory=getattr(payload, "include_memory", True),
             )
-        self._save_message(payload.session_id, "user",
-                           payload.query, model_name)
+        user_message_id = self._save_message(payload.session_id, "user",
+                                             payload.query, model_name)
+        self.attachment_service.bind_attachments_to_message(
+            payload.session_id,
+            payload.attachment_ids,
+            user_message_id,
+        )
         message_id = self._save_message(
             payload.session_id, "assistant", answer, model_name)
         self._save_citations(message_id, citations)
@@ -285,7 +308,10 @@ class ChatService:
 
     def _compose_answer(
         self, query: str, citations: list[dict], model_name: str,
-        session_id: str, include_memory: bool = True,
+        session_id: str,
+        attachment_context: str = "",
+        attachment_images: list[str] | None = None,
+        include_memory: bool = True,
     ) -> str:
         history = self._load_history(session_id)
         context = self._build_context(citations)
@@ -305,16 +331,21 @@ class ChatService:
             if memory_context:
                 system_parts.append(memory_context)
 
-        messages: list[dict[str, str]] = [
+        messages: list[dict[str, Any]] = [
             {"role": "system", "content": "\n\n".join(system_parts)},
         ]
         messages.extend(history)
-        messages.append(
-            {
-                "role": "user",
-                "content": f"Question:\n{query}\n\nKnowledge Context:\n{context}",
-            }
-        )
+        user_parts = [f"Question:\n{query}"]
+        if attachment_context:
+            user_parts.append(f"Attachment Context:\n{attachment_context}")
+        user_parts.append(f"Knowledge Context:\n{context}")
+        user_message: dict[str, Any] = {
+            "role": "user",
+            "content": "\n\n".join(user_parts),
+        }
+        if attachment_images:
+            user_message["images"] = attachment_images
+        messages.append(user_message)
         return self.ollama_service.chat(model_name=model_name, messages=messages)
 
     def _try_grounded_source_answer(self, query: str, citations: list[dict]) -> str | None:
@@ -447,7 +478,33 @@ class ChatService:
                 (session_id,),
             ).fetchall()
         ordered = list(reversed(rows))
-        return [{"role": row["role"], "content": row["content"]} for row in ordered]
+        with get_connection() as conn:
+            message_rows = conn.execute(
+                """
+                SELECT id, role, content
+                FROM messages
+                WHERE session_id = ?
+                ORDER BY created_at DESC
+                LIMIT 6
+                """,
+                (session_id,),
+            ).fetchall()
+        ordered_messages = list(reversed(message_rows))
+        attachments_by_message = self.attachment_service.list_for_message_ids(
+            [row["id"] for row in ordered_messages]
+        )
+        history: list[dict[str, str]] = []
+        for row in ordered_messages:
+            content = str(row["content"])
+            attachments = attachments_by_message.get(row["id"], [])
+            if attachments:
+                attachment_lines = "\n".join(
+                    f"- {attachment.file_name}: {attachment.extracted_text_preview or 'No text extracted.'}"
+                    for attachment in attachments
+                )
+                content = f"{content}\n\nAttached Files:\n{attachment_lines}"
+            history.append({"role": row["role"], "content": content})
+        return history
 
     def _build_context(self, citations: list[dict]) -> str:
         if not citations:

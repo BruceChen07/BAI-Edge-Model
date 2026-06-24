@@ -37,6 +37,14 @@ type MessageBundle = {
     knowledgeBaseDescription: string
     uploadFiles: string
     uploadHint: string
+    chatUploadFiles: string
+    chatUploadHint: string
+    pendingAttachments: string
+    attachedFiles: string
+    removeAttachment: string
+    downloadAttachment: string
+    attachmentUploaded: string
+    attachmentUploadFailed: string
     submitKnowledgeBase: string
     citationScore: string
     citationMatchedTerms: string
@@ -216,7 +224,15 @@ export const messages: Record<Locale, MessageBundle> = {
       knowledgeBaseName: '知识库名称',
       knowledgeBaseDescription: '知识库描述',
       uploadFiles: '导入文件',
-      uploadHint: '支持 PDF、扫描版 PDF、DOC、DOCX。扫描版 PDF 会启用 OCR 识别。',
+      uploadHint: '支持 PDF、DOC、DOCX、TXT、MD、XLSX、PPTX、PNG、JPG、JPEG、WEBP。图片会自动压缩，非多模态模型会拦截上传。',
+      chatUploadFiles: '上传聊天附件',
+      chatUploadHint: '上传后的文件会在发送时作为本轮消息附件一并提交，支持文档解析与图片输入。',
+      pendingAttachments: '待发送附件',
+      attachedFiles: '附件',
+      removeAttachment: '移除附件',
+      downloadAttachment: '下载附件',
+      attachmentUploaded: '附件上传完成',
+      attachmentUploadFailed: '附件上传失败',
       submitKnowledgeBase: '创建并导入',
       citationScore: '相关度',
       citationMatchedTerms: '命中词',
@@ -394,7 +410,15 @@ export const messages: Record<Locale, MessageBundle> = {
       knowledgeBaseName: 'Knowledge Base Name',
       knowledgeBaseDescription: 'Knowledge Base Description',
       uploadFiles: 'Import Files',
-      uploadHint: 'Supports PDF, scanned PDF, DOC, and DOCX. OCR will be enabled for scanned PDFs.',
+      uploadHint: 'Supports PDF, DOC, DOCX, TXT, MD, XLSX, PPTX, PNG, JPG, JPEG, and WEBP. Images are auto-compressed, and non-multimodal models are blocked from upload.',
+      chatUploadFiles: 'Upload Chat Files',
+      chatUploadHint: 'Uploaded files are submitted with the next user message and can be used as parsed document or image input.',
+      pendingAttachments: 'Pending Attachments',
+      attachedFiles: 'Attachments',
+      removeAttachment: 'Remove Attachment',
+      downloadAttachment: 'Download Attachment',
+      attachmentUploaded: 'Attachment uploaded',
+      attachmentUploadFailed: 'Attachment upload failed',
       submitKnowledgeBase: 'Create And Import',
       citationScore: 'Score',
       citationMatchedTerms: 'Matched Terms',

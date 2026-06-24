@@ -6,6 +6,7 @@ import {
   Descriptions,
   Form,
   Input,
+  Modal,
   Progress,
   Select,
   message as antdMessage,
@@ -28,8 +29,15 @@ import {
   type KnowledgeBaseChunk,
   type KnowledgeBaseInfo,
   type KnowledgeBaseStats,
+  type ModelInfo,
 } from "../services/api";
 import { CreateKnowledgeBaseModal } from "../components/knowledgeBase/CreateKnowledgeBaseModal";
+import { loadActiveModelPreference } from "../utils/activeModelPreference";
+import {
+  getUploadAcceptAttribute,
+  prepareFileForUpload,
+  validateUploadCandidate,
+} from "../utils/uploadPolicy";
 
 const { Text, Title } = Typography;
 
@@ -103,10 +111,15 @@ export function KnowledgeBaseManagePage({
   const [renameForm] = Form.useForm();
   const queryClient = useQueryClient();
   const copy = getCopy(locale);
+  const activeModelName = useMemo(() => loadActiveModelPreference(), []);
 
   const knowledgeBases = useQuery({
     queryKey: ["knowledge-bases"],
     queryFn: api.listKnowledgeBases,
+  });
+  const models = useQuery({
+    queryKey: ["models"],
+    queryFn: api.getModels,
   });
 
   const filteredKnowledgeBases = useMemo(() => {
@@ -127,6 +140,10 @@ export function KnowledgeBaseManagePage({
   const selectedKb =
     filteredKnowledgeBases.find((kb) => kb.id === effectiveSelectedKbId) ??
     knowledgeBases.data?.find((kb) => kb.id === effectiveSelectedKbId);
+  const activeModel = useMemo<ModelInfo | undefined>(
+    () => (models.data ?? []).find((item) => item.name === activeModelName),
+    [activeModelName, models.data],
+  );
 
   useEffect(() => {
     if (selectedKb) {
@@ -253,11 +270,16 @@ export function KnowledgeBaseManagePage({
   });
 
   const uploadFileMutation = useMutation({
-    mutationFn: async (payload: { kbId: string; file: File }) => {
+    mutationFn: async (payload: {
+      kbId: string;
+      file: File;
+      modelName?: string;
+    }) => {
       return api.uploadKnowledgeBaseFile({
         kbId: payload.kbId,
         file: payload.file,
         enableOcr: true,
+        modelName: payload.modelName,
       });
     },
     onSuccess: () => {
@@ -277,6 +299,37 @@ export function KnowledgeBaseManagePage({
       antdMessage.error(error.message);
     },
   });
+
+  const handleUploadValidationFailure = (
+    message: string,
+    code?: "MODEL_UNSUPPORTED" | "INVALID_EXTENSION" | "FILE_TOO_LARGE",
+  ) => {
+    if (code === "MODEL_UNSUPPORTED") {
+      Modal.warning({
+        title: "当前模型不支持文件上传",
+        content: message,
+        okText: "我知道了",
+      });
+      return;
+    }
+    antdMessage.error(message);
+  };
+
+  const handleKnowledgeBaseUpload = async (kbId: string, file: File) => {
+    const prepared = await prepareFileForUpload({
+      file,
+      model: activeModel,
+    });
+    if (!prepared.ok) {
+      handleUploadValidationFailure(prepared.message, prepared.code);
+      return;
+    }
+    uploadFileMutation.mutate({
+      kbId,
+      file: prepared.file,
+      modelName: activeModel?.name,
+    });
+  };
 
   const reindexMutation = useMutation({
     mutationFn: (kbId: string) => api.reindexKnowledgeBase(kbId),
@@ -710,13 +763,21 @@ export function KnowledgeBaseManagePage({
                         size="middle"
                       >
                         <Upload
-                          accept=".pdf,.doc,.docx,.txt,.md,.xlsx,.pptx"
+                          accept={getUploadAcceptAttribute()}
                           showUploadList={false}
                           beforeUpload={(file) => {
-                            uploadFileMutation.mutate({
-                              kbId: selectedKb.id,
+                            const validation = validateUploadCandidate({
                               file,
+                              model: activeModel,
                             });
+                            if (!validation.ok) {
+                              handleUploadValidationFailure(
+                                validation.message ?? "",
+                                validation.code,
+                              );
+                              return Upload.LIST_IGNORE;
+                            }
+                            void handleKnowledgeBaseUpload(selectedKb.id, file);
                             return false;
                           }}
                         >
@@ -797,6 +858,7 @@ export function KnowledgeBaseManagePage({
       <CreateKnowledgeBaseModal
         locale={locale}
         open={isCreateOpen}
+        activeModel={activeModel}
         onClose={() => setIsCreateOpen(false)}
       />
     </Space>

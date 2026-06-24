@@ -15,6 +15,7 @@ from app.services.base import BaseService, ensure_parent, sha256_bytes, sha256_t
 from app.services.document_chunking import build_structured_chunks
 from app.services.parser_service import ParserService
 from app.services.task_service import TaskService
+from app.services.upload_policy import validate_file_upload_policy
 from app.utils.ids import new_id
 
 
@@ -28,6 +29,8 @@ class IngestService(BaseService):
         started_at = time.time()
         trace_id = get_trace_id()
         content = await file.read()
+        validate_file_upload_policy(
+            file.filename, file.content_type, len(content))
         file_sha256 = sha256_bytes(content)
         file_id = new_id("doc")
         log_event(

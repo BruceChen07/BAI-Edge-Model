@@ -1,0 +1,45 @@
+Commands:
+1. npm test -- --run src/utils/uploadPolicy.test.ts src/pages/ChatPage.history.test.tsx
+2. npm run lint
+3. npm run build
+
+Working Directory:
+d:\Workspace\BAI-Edge-Model\frontend
+
+Results:
+- Vitest: 2 test files passed, 5 tests passed
+- ESLint: passed
+- Vite build: passed
+
+Relevant covered checks:
+- frontend upload validator blocks unsupported model uploads
+- frontend upload validator blocks unsupported extensions
+- frontend upload validator blocks oversized image files
+- valid image inputs enter preprocessing path before upload
+- chat history path remains stable after active model persistence changes
+
+Notes:
+- Automated CLI environment does not produce UI screenshots directly
+- Manual screenshot capture remains optional for final release archive if product review requires it
+
+---
+
+Commands:
+1. npm test -- src/pages/ChatPage.attachments.test.tsx src/pages/ChatPage.history.test.tsx src/utils/chatHistoryStorage.test.ts
+2. npm run lint
+3. npm run build
+
+Working Directory:
+d:\Workspace\BAI-Edge-Model\frontend
+
+Results:
+- Vitest: 3 test files passed, 6 tests passed
+- ESLint: passed
+- Vite build: passed
+
+Relevant covered checks:
+- chat page renders uploaded pending attachments before send
+- chat request includes `attachment_ids` after file upload
+- user message bubble renders linked attachment metadata and download action
+- local chat history restores both pending attachments and message-side attachments
+- chat attachment related type changes pass lint and TypeScript build

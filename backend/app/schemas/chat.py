@@ -21,6 +21,22 @@ class SessionDTO(BaseModel):
     last_message_at: str | None = None
 
 
+class ChatAttachmentDTO(BaseModel):
+    id: str
+    session_id: str
+    message_id: str | None = None
+    file_name: str
+    file_ext: str
+    mime_type: str
+    file_size: int
+    attachment_type: str
+    storage_path: str
+    extracted_text_preview: str = ""
+    ocr_status: str = "skipped"
+    status: str = "uploaded"
+    created_at: str | None = None
+
+
 class MessageDTO(BaseModel):
     id: str
     session_id: str
@@ -31,6 +47,7 @@ class MessageDTO(BaseModel):
     prompt_tokens: int
     completion_tokens: int
     status: str
+    attachments: list[ChatAttachmentDTO] = Field(default_factory=list)
 
 
 class ChatRequestDTO(BaseModel):
@@ -41,6 +58,7 @@ class ChatRequestDTO(BaseModel):
     rag_enabled: bool = True
     agent_enabled: bool = False
     knowledge_base_ids: list[str] = Field(default_factory=list)
+    attachment_ids: list[str] = Field(default_factory=list)
     top_k: int = 5
     score_threshold: float = 0.1
     include_memory: bool = True

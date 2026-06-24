@@ -13,7 +13,7 @@ from app.core.database import init_db
 from app.core.config import config
 from app.core.logging import setup_logging
 from app.schemas.chat import ChatResponseDTO
-from app.main import app, chat_service, ingest_service
+from app.main import app, chat_attachment_service, chat_service, ingest_service
 
 test_db_path = config.project_root / "storage" / "test_bai_edge_model.db"
 object.__setattr__(config, "db_path", test_db_path)
@@ -57,6 +57,18 @@ def _screenshot_like_ocr_text() -> str:
 """.strip()
 
 
+def _tiny_png_bytes() -> bytes:
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        b"\x00\x00\x00\rIHDR"
+        b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00"
+        b"\x90wS\xde"
+        b"\x00\x00\x00\x0cIDAT\x08\xd7c\xf8\x0f\x00\x01\x01\x01\x00"
+        b"\x18\xdd\x8d\xb4"
+        b"\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+
+
 def test_system_info() -> None:
     response = client.get("/api/v1/system/info")
     assert response.status_code == 200
@@ -72,9 +84,70 @@ def test_models_endpoint(monkeypatch) -> None:
             {"name": "qwen3.5:4b", "size": 1, "modified_at": "now", "digest": "def"},
         ],
     )
+    monkeypatch.setattr(
+        "app.main.llmfit_service.get_model_info",
+        lambda model_name: None
+        if model_name != "qwen3.5:9b"
+        else type(
+            "Rec",
+            (),
+            {
+                "provider": "Qwen",
+                "param_size": "9B",
+                "score": type(
+                    "Score",
+                    (),
+                    {
+                        "total": 88.0,
+                        "quality": 86.0,
+                        "speed": 74.0,
+                        "fit": 81.0,
+                        "context": 79.0,
+                    },
+                )(),
+                "fit_level": "good",
+                "estimated_tps": 12.0,
+                "quantization": "Q4_K_M",
+                "memory_required_gb": 6.6,
+                "run_mode": "GPU",
+                "use_case": "general",
+                "max_context": 32768,
+                "is_moe": False,
+            },
+        )(),
+    )
     response = client.get("/api/v1/models")
     assert response.status_code == 200
     assert response.json()["data"][0]["name"] == "qwen3.5:9b"
+    assert response.json()["data"][0]["provider"] == "Qwen"
+    assert response.json()["data"][0]["fit_level"] == "good"
+    assert response.json()["data"][0]["estimated_tps"] == 12.0
+    assert response.json()["data"][0]["source"] == "local+llmfit"
+    assert response.json()["data"][0]["supports_multimodal"] is False
+    assert response.json()["data"][0]["supports_file_upload"] is False
+    assert response.json()["data"][0]["supported_upload_types"] == []
+
+
+def test_models_endpoint_exposes_multimodal_capability(monkeypatch) -> None:
+    monkeypatch.setattr(
+        chat_service.ollama_service,
+        "list_models",
+        lambda: [
+            {"name": "llava:7b", "size": 1, "modified_at": "now", "digest": "vision"},
+        ],
+    )
+    monkeypatch.setattr(
+        "app.main.llmfit_service.get_model_info", lambda _: None)
+
+    response = client.get("/api/v1/models")
+
+    assert response.status_code == 200
+    payload = response.json()["data"][0]
+    assert payload["name"] == "llava:7b"
+    assert payload["supports_multimodal"] is True
+    assert payload["supports_file_upload"] is True
+    assert payload["supported_upload_types"] == ["document", "image"]
+    assert payload["capability_source"] == "name_inference"
 
 
 def test_catalog_sync_local_upserts_models(monkeypatch) -> None:
@@ -88,9 +161,42 @@ def test_catalog_sync_local_upserts_models(monkeypatch) -> None:
             {"name": "gemma4:12b", "size": 1, "modified_at": "now", "digest": "ghi"},
         ],
     )
+    monkeypatch.setattr(
+        "app.main.llmfit_service.get_model_info",
+        lambda model_name: None
+        if model_name != "qwen3.5:9b"
+        else type(
+            "Rec",
+            (),
+            {
+                "provider": "Qwen",
+                "param_size": "9B",
+                "score": type(
+                    "Score",
+                    (),
+                    {
+                        "total": 90.0,
+                        "quality": 88.0,
+                        "speed": 70.0,
+                        "fit": 84.0,
+                        "context": 80.0,
+                    },
+                )(),
+                "fit_level": "good",
+                "estimated_tps": 11.0,
+                "quantization": "Q4_K_M",
+                "memory_required_gb": 6.6,
+                "run_mode": "GPU",
+                "use_case": "general",
+                "max_context": 32768,
+                "is_moe": False,
+            },
+        )(),
+    )
 
     sync_response = client.post(
         "/api/v1/catalog/sync", json={"source": "local"})
+
     assert sync_response.status_code == 200
     assert sync_response.json(
     )["data"]["message"] == "local model sync completed"
@@ -107,6 +213,8 @@ def test_catalog_sync_local_upserts_models(monkeypatch) -> None:
     synced_item = next(i for i in items if i["model_name"] == "qwen3.5:9b")
     assert synced_item["source"] == "local"
     assert synced_item["available"] is True
+    assert synced_item["fit_level"] == "good"
+    assert synced_item["estimated_tps"] == 11.0
 
 
 def test_knowledge_base_chat_export_flow(monkeypatch) -> None:
@@ -258,6 +366,279 @@ def test_docx_xlsx_ingest_and_delete() -> None:
     assert files_response.status_code == 200
     remaining_ids = [item["id"] for item in files_response.json()["data"]]
     assert docx_id not in remaining_ids
+
+
+def test_upload_rejects_unsupported_extension() -> None:
+    kb_response = client.post(
+        "/api/v1/knowledge-bases",
+        json={"name": "Reject Ext KB", "description": "validation"},
+    )
+    assert kb_response.status_code == 200
+    kb_id = kb_response.json()["data"]["id"]
+
+    upload_response = client.post(
+        f"/api/v1/knowledge-bases/{kb_id}/files/upload?enable_ocr=true",
+        files={
+            "file": (
+                "unsafe.exe",
+                io.BytesIO(b"binary"),
+                "application/octet-stream",
+            )
+        },
+    )
+
+    assert upload_response.status_code == 400
+    assert "不支持该文件类型" in upload_response.json()["detail"]
+
+
+def test_upload_rejects_oversized_file() -> None:
+    kb_response = client.post(
+        "/api/v1/knowledge-bases",
+        json={"name": "Reject Size KB", "description": "validation"},
+    )
+    assert kb_response.status_code == 200
+    kb_id = kb_response.json()["data"]["id"]
+
+    upload_response = client.post(
+        f"/api/v1/knowledge-bases/{kb_id}/files/upload?enable_ocr=true",
+        files={
+            "file": (
+                "oversize.pdf",
+                io.BytesIO(b"x" * (26 * 1024 * 1024)),
+                "application/pdf",
+            )
+        },
+    )
+
+    assert upload_response.status_code == 400
+    assert "文件超过大小限制" in upload_response.json()["detail"]
+
+
+def test_upload_rejects_non_multimodal_model() -> None:
+    kb_response = client.post(
+        "/api/v1/knowledge-bases",
+        json={"name": "Reject Model KB", "description": "validation"},
+    )
+    assert kb_response.status_code == 200
+    kb_id = kb_response.json()["data"]["id"]
+
+    upload_response = client.post(
+        f"/api/v1/knowledge-bases/{kb_id}/files/upload?enable_ocr=true&model_name=gemma4:4b",
+        files={
+            "file": (
+                "evidence.png",
+                io.BytesIO(b"image-bytes"),
+                "image/png",
+            )
+        },
+    )
+
+    assert upload_response.status_code == 400
+    assert "当前模型不支持文件上传" in upload_response.json()["detail"]
+
+
+def test_chat_attachment_upload_succeeds_for_multimodal_model(monkeypatch) -> None:
+    monkeypatch.setattr(
+        chat_service.ollama_service,
+        "list_models",
+        lambda: [{"name": "llava:7b", "size": 1,
+                  "modified_at": "now", "digest": "vision"}],
+    )
+    monkeypatch.setattr(
+        chat_attachment_service.parser_service,
+        "extract_text",
+        lambda *args, **kwargs: ("chat attachment body", "done"),
+    )
+
+    session_response = client.post(
+        "/api/v1/sessions",
+        json={"title": "Attachment Upload Session"},
+    )
+    assert session_response.status_code == 200
+    session_id = session_response.json()["data"]["id"]
+
+    upload_response = client.post(
+        f"/api/v1/sessions/{session_id}/attachments?enable_ocr=true&model_name=llava:7b",
+        files={
+            "file": (
+                "chat-note.txt",
+                io.BytesIO(b"chat attachment body"),
+                "text/plain",
+            )
+        },
+    )
+
+    assert upload_response.status_code == 200
+    payload = upload_response.json()["data"]
+    assert payload["session_id"] == session_id
+    assert payload["file_name"] == "chat-note.txt"
+    assert payload["attachment_type"] == "document"
+    assert payload["status"] == "uploaded"
+    assert "chat attachment body" in payload["extracted_text_preview"]
+
+
+def test_chat_attachment_upload_rejects_non_multimodal_model() -> None:
+    session_response = client.post(
+        "/api/v1/sessions",
+        json={"title": "Attachment Reject Session"},
+    )
+    assert session_response.status_code == 200
+    session_id = session_response.json()["data"]["id"]
+
+    upload_response = client.post(
+        f"/api/v1/sessions/{session_id}/attachments?enable_ocr=true&model_name=gemma4:4b",
+        files={
+            "file": (
+                "evidence.png",
+                io.BytesIO(_tiny_png_bytes()),
+                "image/png",
+            )
+        },
+    )
+
+    assert upload_response.status_code == 400
+    assert "当前模型不支持文件上传" in upload_response.json()["detail"]
+
+
+def test_chat_completions_binds_attachments_and_includes_message_payload(monkeypatch) -> None:
+    monkeypatch.setattr(
+        chat_service.ollama_service,
+        "list_models",
+        lambda: [{"name": "llava:7b", "size": 1,
+                  "modified_at": "now", "digest": "vision"}],
+    )
+    monkeypatch.setattr(
+        chat_attachment_service.parser_service,
+        "extract_text",
+        lambda file_name, *
+        _args, **_kwargs: (f"parsed from {file_name}", "done"),
+    )
+
+    captured_chat_call: dict[str, object] = {}
+
+    def _mock_chat(**kwargs: object) -> str:
+        captured_chat_call.update(kwargs)
+        return "mocked multimodal reply"
+
+    monkeypatch.setattr(chat_service.ollama_service, "chat", _mock_chat)
+
+    session_response = client.post(
+        "/api/v1/sessions",
+        json={"title": "Attachment Bind Session"},
+    )
+    assert session_response.status_code == 200
+    session_id = session_response.json()["data"]["id"]
+
+    text_upload = client.post(
+        f"/api/v1/sessions/{session_id}/attachments?enable_ocr=true&model_name=llava:7b",
+        files={
+            "file": (
+                "summary.txt",
+                io.BytesIO(b"summary body"),
+                "text/plain",
+            )
+        },
+    )
+    assert text_upload.status_code == 200
+    text_attachment_id = text_upload.json()["data"]["id"]
+
+    image_upload = client.post(
+        f"/api/v1/sessions/{session_id}/attachments?enable_ocr=true&model_name=llava:7b",
+        files={
+            "file": (
+                "diagram.png",
+                io.BytesIO(_tiny_png_bytes()),
+                "image/png",
+            )
+        },
+    )
+    assert image_upload.status_code == 200
+    image_attachment_id = image_upload.json()["data"]["id"]
+
+    chat_response = client.post(
+        "/api/v1/chat/completions",
+        json={
+            "session_id": session_id,
+            "query": "Please summarize the attachments",
+            "model_name": "llava:7b",
+            "knowledge_base_ids": [],
+            "attachment_ids": [text_attachment_id, image_attachment_id],
+        },
+    )
+    assert chat_response.status_code == 200
+    assert chat_response.json()["data"]["answer"] == "mocked multimodal reply"
+
+    chat_messages = captured_chat_call["messages"]
+    assert isinstance(chat_messages, list)
+    user_message = chat_messages[-1]
+    assert isinstance(user_message, dict)
+    assert "Attachment Context:" in str(user_message["content"])
+    assert "parsed from summary.txt" in str(user_message["content"])
+    assert "parsed from diagram.png" in str(user_message["content"])
+    assert isinstance(user_message.get("images"), list)
+    assert len(user_message["images"]) == 1
+
+    session_detail = client.get(f"/api/v1/sessions/{session_id}")
+    assert session_detail.status_code == 200
+    messages = session_detail.json()["data"]["messages"]
+    user_messages = [item for item in messages if item["role"] == "user"]
+    assert len(user_messages) == 1
+    attachments = user_messages[0]["attachments"]
+    assert [item["file_name"]
+            for item in attachments] == ["summary.txt", "diagram.png"]
+    assert all(item["status"] == "linked" for item in attachments)
+
+
+def test_chat_attachment_download_and_delete_flow(monkeypatch) -> None:
+    monkeypatch.setattr(
+        chat_service.ollama_service,
+        "list_models",
+        lambda: [{"name": "llava:7b", "size": 1,
+                  "modified_at": "now", "digest": "vision"}],
+    )
+    monkeypatch.setattr(
+        chat_attachment_service.parser_service,
+        "extract_text",
+        lambda *args, **kwargs: ("download me", "done"),
+    )
+
+    session_response = client.post(
+        "/api/v1/sessions",
+        json={"title": "Attachment Download Session"},
+    )
+    assert session_response.status_code == 200
+    session_id = session_response.json()["data"]["id"]
+
+    upload_response = client.post(
+        f"/api/v1/sessions/{session_id}/attachments?enable_ocr=true&model_name=llava:7b",
+        files={
+            "file": (
+                "download.txt",
+                io.BytesIO(b"download me"),
+                "text/plain",
+            )
+        },
+    )
+    assert upload_response.status_code == 200
+    attachment_id = upload_response.json()["data"]["id"]
+
+    download_response = client.get(
+        f"/api/v1/chat/attachments/{attachment_id}/download",
+    )
+    assert download_response.status_code == 200
+    assert download_response.content == b"download me"
+    assert 'filename="download.txt"' in download_response.headers.get(
+        "content-disposition", "")
+
+    delete_response = client.delete(
+        f"/api/v1/chat/attachments/{attachment_id}")
+    assert delete_response.status_code == 200
+    assert delete_response.json()["data"]["deleted"] is True
+
+    missing_response = client.get(
+        f"/api/v1/chat/attachments/{attachment_id}/download",
+    )
+    assert missing_response.status_code == 404
 
 
 def test_knowledge_base_reindex_stats_and_chunk_pagination() -> None:

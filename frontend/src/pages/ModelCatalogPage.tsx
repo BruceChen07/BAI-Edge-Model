@@ -23,7 +23,7 @@ import {
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 
-import { api, type CatalogEntry } from "../services/api";
+import { api, type CatalogEntry, type ModelInfo } from "../services/api";
 import { messages, type Locale } from "../i18n/messages";
 
 const { Text, Title } = Typography;
@@ -264,35 +264,7 @@ export function ModelCatalogPage({ locale }: { locale: Locale }) {
     const known = new Set(merged.map((i) => i.model_name));
     const localOnly = local
       .filter((m) => !known.has(m.name))
-      .map((m) => ({
-        id: `local:${m.name}`,
-        model_name: m.name,
-        provider: inferProvider(m.name),
-        param_size: extractParamSize(m.name),
-        version: "",
-        score_total: 0,
-        score_quality: 0,
-        score_speed: 0,
-        score_fit: 0,
-        score_context: 0,
-        fit_level: "unknown",
-        estimated_tps: 0,
-        quantization: inferQuantization(m.name),
-        memory_required_gb: 0,
-        vram_required_gb: 0,
-        run_mode: "CPU",
-        use_case: "general",
-        max_context: 8192,
-        is_moe: false,
-        available: true,
-        description: "",
-        tags: [],
-        source: "local",
-        raw_json: "",
-        last_synced_at: "",
-        created_at: "",
-        updated_at: "",
-      })) as unknown as CatalogEntry[];
+      .map(_localModelToCatalogEntry);
 
     const combined = [...merged, ...localOnly];
     const filtered = combined.filter((entry) => {
@@ -586,4 +558,35 @@ function inferQuantization(modelName: string) {
     if (lowered.includes(token)) return token.toUpperCase();
   }
   return "Q4_K_M";
+}
+
+function _localModelToCatalogEntry(m: ModelInfo): CatalogEntry {
+  return {
+    id: `local:${m.name}`,
+    model_name: m.name,
+    provider: m.provider ?? inferProvider(m.name),
+    param_size: m.param_size ?? extractParamSize(m.name),
+    version: "",
+    score_total: m.score_total ?? 0,
+    score_quality: m.score_quality ?? 0,
+    score_speed: m.score_speed ?? 0,
+    score_fit: m.score_fit ?? 0,
+    score_context: m.score_context ?? 0,
+    fit_level: m.fit_level ?? "unknown",
+    estimated_tps: m.estimated_tps ?? 0,
+    quantization: m.quantization ?? inferQuantization(m.name),
+    memory_required_gb: m.memory_required_gb ?? 0,
+    vram_required_gb: m.vram_required_gb ?? 0,
+    run_mode: m.run_mode ?? "CPU",
+    use_case: m.use_case ?? "general",
+    max_context: m.max_context ?? 8192,
+    is_moe: m.is_moe ?? false,
+    available: m.available ?? true,
+    description: "",
+    tags: [],
+    source: m.source ?? "local",
+    last_synced_at: "",
+    created_at: "",
+    updated_at: "",
+  };
 }

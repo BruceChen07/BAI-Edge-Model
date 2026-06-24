@@ -27,7 +27,8 @@ def _row_to_dto(row: dict) -> CatalogEntryDTO:
     """Convert SQLite row dict to CatalogEntryDTO."""
     tags_raw = row.get("tags", "[]")
     try:
-        tags = json.loads(tags_raw) if isinstance(tags_raw, str) else (tags_raw or [])
+        tags = json.loads(tags_raw) if isinstance(
+            tags_raw, str) else (tags_raw or [])
     except (json.JSONDecodeError, TypeError):
         tags = []
     if not isinstance(tags, list):
@@ -74,7 +75,8 @@ class ModelCatalogService:
         now = _now()
         with get_connection() as conn:
             existing = conn.execute(
-                "SELECT id FROM model_catalog WHERE model_name = ?", (entry.model_name,)
+                "SELECT id FROM model_catalog WHERE model_name = ?", (
+                    entry.model_name,)
             ).fetchone()
 
             if existing:
@@ -166,33 +168,39 @@ class ModelCatalogService:
     def sync_local_models(self, local_models: list[dict[str, Any]]) -> CatalogSyncResult:
         entries: list[CatalogEntryDTO] = []
         for item in local_models:
-            model_name = str(item.get("name", "")).strip()
+            model_name = str(item.get("name") or item.get(
+                "model_name", "")).strip()
             if not model_name:
                 continue
             entries.append(
                 CatalogEntryDTO(
                     id=str(uuid.uuid4()),
                     model_name=model_name,
-                    provider=_infer_provider(model_name),
-                    param_size=extract_param_size(model_name),
-                    version="",
-                    score_total=0,
-                    score_quality=0,
-                    score_speed=0,
-                    score_fit=0,
-                    score_context=0,
-                    fit_level="unknown",
-                    estimated_tps=0,
-                    quantization=_infer_quantization(model_name),
-                    memory_required_gb=0,
-                    vram_required_gb=0,
-                    run_mode="CPU",
-                    use_case="general",
-                    max_context=8192,
-                    is_moe=False,
-                    available=True,
-                    description="",
-                    tags=[],
+                    provider=str(item.get("provider")
+                                 or _infer_provider(model_name)),
+                    param_size=str(item.get("param_size")
+                                   or extract_param_size(model_name)),
+                    version=str(item.get("version", "")),
+                    score_total=float(item.get("score_total", 0) or 0),
+                    score_quality=float(item.get("score_quality", 0) or 0),
+                    score_speed=float(item.get("score_speed", 0) or 0),
+                    score_fit=float(item.get("score_fit", 0) or 0),
+                    score_context=float(item.get("score_context", 0) or 0),
+                    fit_level=str(item.get("fit_level", "unknown")),
+                    estimated_tps=float(item.get("estimated_tps", 0) or 0),
+                    quantization=str(item.get("quantization")
+                                     or _infer_quantization(model_name)),
+                    memory_required_gb=float(
+                        item.get("memory_required_gb", 0) or 0),
+                    vram_required_gb=float(
+                        item.get("vram_required_gb", 0) or 0),
+                    run_mode=str(item.get("run_mode", "CPU")),
+                    use_case=str(item.get("use_case", "general")),
+                    max_context=int(item.get("max_context", 8192) or 8192),
+                    is_moe=bool(item.get("is_moe", False)),
+                    available=bool(item.get("available", True)),
+                    description=str(item.get("description", "")),
+                    tags=list(item.get("tags", []) or []),
                     source="local",
                     raw_json=json.dumps(item, ensure_ascii=False),
                     last_synced_at="",
@@ -338,7 +346,8 @@ class ModelCatalogService:
     # ------------------------------------------------------------------
     def delete(self, entry_id: str) -> bool:
         with get_connection() as conn:
-            cursor = conn.execute("DELETE FROM model_catalog WHERE id = ?", (entry_id,))
+            cursor = conn.execute(
+                "DELETE FROM model_catalog WHERE id = ?", (entry_id,))
             return cursor.rowcount > 0
 
     def count(self) -> int:

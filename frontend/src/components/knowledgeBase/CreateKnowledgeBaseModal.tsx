@@ -12,8 +12,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import type { Locale } from "../../i18n/messages";
 import { messages } from "../../i18n/messages";
-import { api } from "../../services/api";
+import { api, type ModelInfo } from "../../services/api";
 import { extractRcFilesFromUploadList } from "../../utils/uploadFiles";
+import {
+  getUploadAcceptAttribute,
+  prepareFileForUpload,
+  validateUploadCandidate,
+} from "../../utils/uploadPolicy";
 import type { UploadFile } from "antd/es/upload/interface";
 
 const { Paragraph } = Typography;
@@ -21,6 +26,7 @@ const { Paragraph } = Typography;
 type CreateKnowledgeBaseModalProps = {
   locale: Locale;
   open: boolean;
+  activeModel?: ModelInfo;
   onClose: () => void;
   onCreated?: (kbId: string, kbName: string) => void;
 };
@@ -28,6 +34,7 @@ type CreateKnowledgeBaseModalProps = {
 export function CreateKnowledgeBaseModal({
   locale,
   open,
+  activeModel,
   onClose,
   onCreated,
 }: CreateKnowledgeBaseModalProps) {
@@ -51,6 +58,7 @@ export function CreateKnowledgeBaseModal({
           kbId: knowledgeBase.id,
           file,
           enableOcr: true,
+          modelName: activeModel?.name,
         });
       }
       return knowledgeBase;
@@ -76,10 +84,22 @@ export function CreateKnowledgeBaseModal({
       antdMessage.warning(copy.chat.uploadFiles);
       return;
     }
+    const preparedFiles: File[] = [];
+    for (const file of files) {
+      const prepared = await prepareFileForUpload({
+        file,
+        model: activeModel,
+      });
+      if (!prepared.ok) {
+        handleValidationFailure(prepared.message, prepared.code);
+        return;
+      }
+      preparedFiles.push(prepared.file);
+    }
     await createMutation.mutateAsync({
       name: values.name,
       description: values.description,
-      files,
+      files: preparedFiles,
     });
   };
 
@@ -87,6 +107,21 @@ export function CreateKnowledgeBaseModal({
     form.resetFields();
     setFileList([]);
     onClose();
+  };
+
+  const handleValidationFailure = (
+    message: string,
+    code?: "MODEL_UNSUPPORTED" | "INVALID_EXTENSION" | "FILE_TOO_LARGE",
+  ) => {
+    if (code === "MODEL_UNSUPPORTED") {
+      Modal.warning({
+        title: "当前模型不支持文件上传",
+        content: message,
+        okText: "我知道了",
+      });
+      return;
+    }
+    antdMessage.error(message);
   };
 
   return (
@@ -117,8 +152,16 @@ export function CreateKnowledgeBaseModal({
           <Upload
             multiple
             fileList={fileList}
-            accept=".pdf,.doc,.docx"
+            accept={getUploadAcceptAttribute()}
             beforeUpload={(file) => {
+              const validation = validateUploadCandidate({
+                file,
+                model: activeModel,
+              });
+              if (!validation.ok) {
+                handleValidationFailure(validation.message ?? "", validation.code);
+                return Upload.LIST_IGNORE;
+              }
               setFileList((current) => [...current, file]);
               return false;
             }}

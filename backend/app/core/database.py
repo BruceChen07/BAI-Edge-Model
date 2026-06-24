@@ -116,6 +116,28 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, created_at);
 
+CREATE TABLE IF NOT EXISTS chat_attachments (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    message_id TEXT DEFAULT '',
+    file_name TEXT NOT NULL,
+    file_ext TEXT NOT NULL DEFAULT '',
+    mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+    file_size INTEGER NOT NULL DEFAULT 0,
+    attachment_type TEXT NOT NULL DEFAULT 'document',
+    storage_path TEXT NOT NULL,
+    sha256 TEXT NOT NULL DEFAULT '',
+    extracted_text TEXT DEFAULT '',
+    ocr_status TEXT NOT NULL DEFAULT 'skipped',
+    status TEXT NOT NULL DEFAULT 'uploaded',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(session_id) REFERENCES sessions(id),
+    FOREIGN KEY(message_id) REFERENCES messages(id)
+);
+CREATE INDEX IF NOT EXISTS idx_chat_attachments_session ON chat_attachments(session_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_chat_attachments_message ON chat_attachments(message_id, created_at);
+
 CREATE TABLE IF NOT EXISTS message_citations (
     id TEXT PRIMARY KEY,
     message_id TEXT NOT NULL,

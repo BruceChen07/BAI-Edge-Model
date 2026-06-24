@@ -37,12 +37,42 @@ describe("chatHistoryStorage", () => {
       selectedKnowledgeBases: ["kb-a"],
       prompt: "draft prompt",
       markdownTheme: "dark",
+      pendingAttachments: [
+        {
+          id: "pending-1",
+          session_id: "session-1",
+          file_name: "pending.txt",
+          file_ext: ".txt",
+          mime_type: "text/plain",
+          file_size: 12,
+          attachment_type: "document",
+          storage_path: "storage/pending.txt",
+          status: "uploaded",
+        },
+      ],
       messages: Array.from({ length: 12 }, (_, index) =>
         createChatHistoryMessage({
           id: `persist-${index + 1}`,
           sentAt: `2026-06-23T10:00:${String(index).padStart(2, "0")}.000Z`,
           role: index % 2 === 0 ? "user" : "assistant",
           content: `persist-${index + 1}`,
+          attachments:
+            index === 11
+              ? [
+                  {
+                    id: "linked-1",
+                    session_id: "session-1",
+                    message_id: "persist-12",
+                    file_name: "linked.pdf",
+                    file_ext: ".pdf",
+                    mime_type: "application/pdf",
+                    file_size: 1024,
+                    attachment_type: "document",
+                    storage_path: "storage/linked.pdf",
+                    status: "linked",
+                  },
+                ]
+              : [],
         }),
       ),
     });
@@ -55,8 +85,13 @@ describe("chatHistoryStorage", () => {
     expect(snapshot?.selectedKnowledgeBases).toEqual(["kb-a"]);
     expect(snapshot?.prompt).toBe("draft prompt");
     expect(snapshot?.markdownTheme).toBe("dark");
+    expect(snapshot?.pendingAttachments).toHaveLength(1);
+    expect(snapshot?.pendingAttachments[0]?.file_name).toBe("pending.txt");
     expect(snapshot?.messages).toHaveLength(MAX_CHAT_HISTORY_MESSAGES);
     expect(snapshot?.messages[0]?.id).toBe("persist-3");
+    expect(snapshot?.messages.at(-1)?.attachments?.[0]?.file_name).toBe(
+      "linked.pdf",
+    );
   });
 
   it("returns null for invalid stored JSON", () => {
@@ -71,6 +106,7 @@ describe("chatHistoryStorage", () => {
       selectedKnowledgeBases: [],
       prompt: "",
       markdownTheme: "light",
+      pendingAttachments: [],
       messages: [],
     });
 
