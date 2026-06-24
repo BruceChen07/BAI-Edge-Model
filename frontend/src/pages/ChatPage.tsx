@@ -807,7 +807,7 @@ export function ChatPage({ locale }: ChatPageProps) {
               {copy.chat.chatUploadFiles}
             </Button>
             <Button onClick={() => setShowTimeoutSettings(true)}>
-              Timeout Settings
+              {copy.chat.timeoutSettings}
             </Button>
             <Button
               type="primary"
@@ -956,54 +956,53 @@ export function ChatPage({ locale }: ChatPageProps) {
 
       {/* -- Timeout settings modal -- */}
       <Modal
-        title="Timeout Settings"
+        title={copy.chat.timeoutSettings}
         open={showTimeoutSettings}
         onCancel={() => setShowTimeoutSettings(false)}
         onOk={() => setShowTimeoutSettings(false)}
-        okText="Done"
+        okText={copy.chat.timeoutDone}
         width={480}
       >
         <Space direction="vertical" size="middle" style={{ width: "100%" }}>
           {timeoutInfo ? (
             <Descriptions bordered size="small" column={1}>
-              <Descriptions.Item label="Current Model">
+              <Descriptions.Item label={copy.chat.timeoutCurrentModel}>
                 {timeoutInfo.model_name}
               </Descriptions.Item>
-              <Descriptions.Item label="Param Size">
+              <Descriptions.Item label={copy.chat.timeoutParamSize}>
                 {timeoutInfo.param_size}
               </Descriptions.Item>
-              <Descriptions.Item label="Connect Timeout">
+              <Descriptions.Item label={copy.chat.timeoutConnect}>
                 {timeoutInfo.timeout.connect}s
               </Descriptions.Item>
-              <Descriptions.Item label="Read Timeout">
+              <Descriptions.Item label={copy.chat.timeoutRead}>
                 {timeoutInfo.timeout.read}s
               </Descriptions.Item>
-              <Descriptions.Item label="Write Timeout">
+              <Descriptions.Item label={copy.chat.timeoutWrite}>
                 {timeoutInfo.timeout.write}s
               </Descriptions.Item>
-              <Descriptions.Item label="Auto-tiered">
-                {timeoutInfo.user_override ? "No (Manual)" : "Yes"}
+              <Descriptions.Item label={copy.chat.timeoutAutoTiered}>
+                {timeoutInfo.user_override
+                  ? copy.chat.timeoutAutoNoManual
+                  : copy.chat.timeoutAutoYes}
               </Descriptions.Item>
             </Descriptions>
           ) : (
-            <Text type="secondary">
-              Select a model first to see timeout info.
-            </Text>
+            <Text type="secondary">{copy.chat.timeoutSelectModelFirst}</Text>
           )}
 
           <div>
-            <Text strong>Manual Read Timeout Override (seconds):</Text>
+            <Text strong>{copy.chat.timeoutManualReadOverride}</Text>
             <InputNumber
               style={{ width: "100%", marginTop: 8 }}
               min={10}
               max={3600}
-              placeholder="10 - 3600 seconds"
+              placeholder={copy.chat.timeoutPlaceholder}
               value={timeoutOverride}
               onChange={(value) => setTimeoutOverride(value)}
             />
             <Paragraph type="secondary" style={{ marginTop: 4 }}>
-              Set a custom read timeout. Leave empty to use auto-tiered
-              selection based on model size.
+              {copy.chat.timeoutHelp}
             </Paragraph>
             {timeoutOverride && (
               <Button
@@ -1012,7 +1011,7 @@ export function ChatPage({ locale }: ChatPageProps) {
                 style={{ marginTop: 4 }}
                 onClick={() => setTimeoutOverride(null)}
               >
-                Revert to Auto
+                {copy.chat.timeoutRevertAuto}
               </Button>
             )}
           </div>

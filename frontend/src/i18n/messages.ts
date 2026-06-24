@@ -55,6 +55,21 @@ type MessageBundle = {
     citationSheet: string
     citationSlide: string
     citationQuote: string
+    timeoutSettings: string
+    timeoutDone: string
+    timeoutCurrentModel: string
+    timeoutParamSize: string
+    timeoutConnect: string
+    timeoutRead: string
+    timeoutWrite: string
+    timeoutAutoTiered: string
+    timeoutAutoYes: string
+    timeoutAutoNoManual: string
+    timeoutSelectModelFirst: string
+    timeoutManualReadOverride: string
+    timeoutPlaceholder: string
+    timeoutHelp: string
+    timeoutRevertAuto: string
   }
   kbManagement: {
     pageTitle: string
@@ -243,6 +258,21 @@ export const messages: Record<Locale, MessageBundle> = {
       citationSheet: '工作表',
       citationSlide: '幻灯片',
       citationQuote: '引用内容',
+      timeoutSettings: '超时设置',
+      timeoutDone: '完成',
+      timeoutCurrentModel: '当前模型',
+      timeoutParamSize: '参数规模',
+      timeoutConnect: '连接超时',
+      timeoutRead: '读取超时',
+      timeoutWrite: '写入超时',
+      timeoutAutoTiered: '自动分层',
+      timeoutAutoYes: '是',
+      timeoutAutoNoManual: '否（手动）',
+      timeoutSelectModelFirst: '请先选择模型以查看超时信息。',
+      timeoutManualReadOverride: '手动读取超时覆盖（秒）：',
+      timeoutPlaceholder: '10 - 3600 秒',
+      timeoutHelp: '设置自定义读取超时。留空则根据模型大小使用自动分层策略。',
+      timeoutRevertAuto: '恢复自动',
     },
     kbManagement: {
       pageTitle: '知识库管理',
@@ -429,6 +459,21 @@ export const messages: Record<Locale, MessageBundle> = {
       citationSheet: 'Sheet',
       citationSlide: 'Slide',
       citationQuote: 'Quote',
+      timeoutSettings: 'Timeout Settings',
+      timeoutDone: 'Done',
+      timeoutCurrentModel: 'Current Model',
+      timeoutParamSize: 'Param Size',
+      timeoutConnect: 'Connect Timeout',
+      timeoutRead: 'Read Timeout',
+      timeoutWrite: 'Write Timeout',
+      timeoutAutoTiered: 'Auto-tiered',
+      timeoutAutoYes: 'Yes',
+      timeoutAutoNoManual: 'No (Manual)',
+      timeoutSelectModelFirst: 'Select a model first to see timeout info.',
+      timeoutManualReadOverride: 'Manual Read Timeout Override (seconds):',
+      timeoutPlaceholder: '10 - 3600 seconds',
+      timeoutHelp: 'Set a custom read timeout. Leave empty to use auto-tiered selection based on model size.',
+      timeoutRevertAuto: 'Revert to Auto',
     },
     kbManagement: {
       pageTitle: 'Knowledge Base Management',
